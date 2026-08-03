@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Personalplanering</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="topbar">
+  <h1>Personalplanering</h1>
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="timeline">Tidslinje</button>
+    <button class="tab-btn" data-tab="month">Månadskalender</button>
+    <button class="tab-btn" data-tab="projects">Projekt</button>
+    <button class="tab-btn" data-tab="resources">Personal</button>
+  </nav>
+</header>
+
+<main>
+  <!-- TIDSLINJE -->
+  <section id="tab-timeline" class="tab-panel active">
+    <div class="toolbar">
+      <button id="tl-prev">‹ Föregående</button>
+      <span id="tl-range-label" class="range-label"></span>
+      <button id="tl-next">Nästa ›</button>
+      <button id="tl-today">Idag</button>
+      <div class="spacer"></div>
+      <button id="btn-add-assignment" class="primary">+ Boka personal på projekt</button>
+    </div>
+    <div id="timeline-legend" class="legend"></div>
+    <div id="timeline-wrap" class="timeline-wrap"></div>
+  </section>
+
+  <!-- MÅNADSKALENDER -->
+  <section id="tab-month" class="tab-panel">
+    <div class="toolbar">
+      <button id="mo-prev">‹</button>
+      <span id="mo-label" class="range-label"></span>
+      <button id="mo-next">›</button>
+      <button id="mo-today">Idag</button>
+      <div class="spacer"></div>
+      <label class="filter-label">Visa:
+        <select id="mo-filter"><option value="">Alla</option></select>
+      </label>
+    </div>
+    <div id="month-grid" class="month-grid"></div>
+  </section>
+
+  <!-- PROJEKT -->
+  <section id="tab-projects" class="tab-panel">
+    <div class="toolbar">
+      <div class="spacer"></div>
+      <button id="btn-add-project" class="primary">+ Nytt projekt</button>
+    </div>
+    <table class="data-table" id="projects-table">
+      <thead>
+        <tr>
+          <th>Projektnr</th><th>Namn</th><th>Kund</th><th>Projektledare</th>
+          <th>Summa</th><th>Byggstart</th><th>Byggslut</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- PERSONAL -->
+  <section id="tab-resources" class="tab-panel">
+    <div class="toolbar">
+      <div class="spacer"></div>
+      <button id="btn-add-resource" class="primary">+ Lägg till person</button>
+    </div>
+    <h2 class="group-title">Anställda</h2>
+    <table class="data-table" id="employees-table">
+      <thead><tr><th>Namn</th><th>Telefon</th><th>Aktiv</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <h2 class="group-title">Underentreprenörer</h2>
+    <table class="data-table" id="subcontractors-table">
+      <thead><tr><th>Namn</th><th>Telefon</th><th>Aktiv</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</main>
+
+<!-- MODAL: Projekt -->
+<div class="modal-backdrop" id="modal-project">
+  <form class="modal" id="form-project">
+    <h2 id="project-modal-title">Nytt projekt</h2>
+    <input type="hidden" name="id" />
+    <label>Projektnummer<input name="project_number" required readonly /></label>
+    <label>Namn *<input name="name" required /></label>
+    <label>Kund<input name="client" /></label>
+    <label>Projektledare<input name="project_manager" /></label>
+    <label>Summa (kr)<input name="sum" type="number" step="1" /></label>
+    <div class="row-2">
+      <label>Byggstart<input name="start_date" type="date" /></label>
+      <label>Byggslut<input name="end_date" type="date" /></label>
+    </div>
+    <label>Status
+      <select name="status">
+        <option value="aktiv">Aktiv</option>
+        <option value="avslutad">Avslutad</option>
+      </select>
+    </label>
+    <label>Anteckningar<textarea name="notes" rows="2"></textarea></label>
+    <div class="modal-actions">
+      <button type="button" class="danger" id="project-delete-btn" hidden>Ta bort</button>
+      <div class="spacer"></div>
+      <button type="button" class="ghost" data-close>Avbryt</button>
+      <button type="submit" class="primary">Spara</button>
+    </div>
+  </form>
+</div>
+
+<!-- MODAL: Person -->
+<div class="modal-backdrop" id="modal-resource">
+  <form class="modal" id="form-resource">
+    <h2 id="resource-modal-title">Lägg till person</h2>
+    <input type="hidden" name="id" />
+    <label>Namn *<input name="name" required /></label>
+    <label>Typ *
+      <select name="type">
+        <option value="anstalld">Anställd</option>
+        <option value="underentreprenor">Underentreprenör</option>
+      </select>
+    </label>
+    <label>Telefon<input name="phone" /></label>
+    <label class="checkbox-label"><input type="checkbox" name="active" checked /> Aktiv</label>
+    <div class="modal-actions">
+      <button type="button" class="danger" id="resource-delete-btn" hidden>Ta bort</button>
+      <div class="spacer"></div>
+      <button type="button" class="ghost" data-close>Avbryt</button>
+      <button type="submit" class="primary">Spara</button>
+    </div>
+  </form>
+</div>
+
+<!-- MODAL: Bokning -->
+<div class="modal-backdrop" id="modal-assignment">
+  <form class="modal" id="form-assignment">
+    <h2 id="assignment-modal-title">Boka personal på projekt</h2>
+    <input type="hidden" name="id" />
+    <label>Person *
+      <select name="resource_id" required></select>
+    </label>
+    <label>Projekt *
+      <select name="project_id" required></select>
+    </label>
+    <div class="row-2">
+      <label>Från *<input name="start_date" type="date" required /></label>
+      <label>Till *<input name="end_date" type="date" required /></label>
+    </div>
+    <label>Anteckning<input name="note" /></label>
+    <div class="modal-actions">
+      <button type="button" class="danger" id="assignment-delete-btn" hidden>Ta bort</button>
+      <div class="spacer"></div>
+      <button type="button" class="ghost" data-close>Avbryt</button>
+      <button type="submit" class="primary">Spara</button>
+    </div>
+  </form>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
