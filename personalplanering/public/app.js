@@ -13,7 +13,7 @@
 
   const TL_LABEL_WIDTH = 180;
   const TL_DAY_WIDTH = 36;
-  const TL_VISIBLE_DAYS = 21;
+  const TL_VISIBLE_DAYS = 31;
 
   // ---------- State ----------
 
@@ -22,6 +22,7 @@
     projects: [],
     assignments: [],
     tlStart: mondayOf(new Date()),
+    tlFilterType: '',
     monthCursor: startOfMonth(new Date()),
     monthFilterResourceId: '',
   };
@@ -174,8 +175,12 @@
 
     renderTimelineLegend();
 
-    const employees = state.resources.filter((r) => r.type === 'anstalld');
-    const subcontractors = state.resources.filter((r) => r.type === 'underentreprenor');
+    const employees = state.tlFilterType && state.tlFilterType !== 'anstalld'
+      ? []
+      : state.resources.filter((r) => r.type === 'anstalld');
+    const subcontractors = state.tlFilterType && state.tlFilterType !== 'underentreprenor'
+      ? []
+      : state.resources.filter((r) => r.type === 'underentreprenor');
 
     const gridCols = `${TL_LABEL_WIDTH}px repeat(${days.length}, ${TL_DAY_WIDTH}px)`;
 
@@ -264,6 +269,10 @@
     });
     document.getElementById('tl-today').addEventListener('click', () => {
       state.tlStart = mondayOf(new Date());
+      renderTimeline();
+    });
+    document.getElementById('tl-filter').addEventListener('change', (e) => {
+      state.tlFilterType = e.target.value;
       renderTimeline();
     });
     document.getElementById('btn-add-assignment').addEventListener('click', () => openAssignmentModal({}));
