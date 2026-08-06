@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Logga in – Personalplanering</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #dde1e6;
+    --text: #1f2430;
+    --text-muted: #6b7280;
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --danger: #dc2626;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .login-card {
+    width: 100%;
+    max-width: 320px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+  }
+  .login-card h1 {
+    font-size: 18px;
+    margin: 0 0 20px;
+    text-align: center;
+  }
+  label {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+  input {
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+  button {
+    width: 100%;
+    padding: 9px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--primary);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:hover { background: var(--primary-dark); }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .error {
+    color: var(--danger);
+    font-size: 13px;
+    margin: -8px 0 16px;
+    min-height: 16px;
+  }
+</style>
+</head>
+<body>
+  <form class="login-card" id="login-form" novalidate>
+    <h1>Personalplanering</h1>
+    <label for="username">Användarnamn</label>
+    <input type="text" id="username" name="username" autocomplete="username" required autofocus />
+    <label for="password">Lösenord</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required />
+    <div class="error" id="login-error"></div>
+    <button type="submit" id="login-submit">Logga in</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const errorEl = document.getElementById('login-error');
+    const submitBtn = document.getElementById('login-submit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.textContent = '';
+      submitBtn.disabled = true;
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          errorEl.textContent = data.error || 'Kunde inte logga in.';
+          return;
+        }
+        window.location.href = '/';
+      } catch (err) {
+        errorEl.textContent = 'Kunde inte nå servern.';
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

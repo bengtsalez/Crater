@@ -95,6 +95,10 @@
       headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
+    if (res.status === 401) {
+      window.location.href = '/login.html';
+      return new Promise(() => {}); // stoppa vidare bearbetning tills omdirigeringen sker
+    }
     if (!res.ok) {
       let message = 'Ett fel uppstod.';
       try {
@@ -674,8 +678,16 @@
 
   // ---------- Init ----------
 
+  function initLogout() {
+    document.getElementById('btn-logout').addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = '/login.html';
+    });
+  }
+
   async function init() {
     initTabs();
+    initLogout();
     initTimelineToolbar();
     initMonthToolbar();
     initProjectsTable();

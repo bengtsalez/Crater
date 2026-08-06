@@ -1,9 +1,20 @@
 const express = require('express');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const { pool, ready, nextProjectNumber } = require('./db');
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET saknas i miljövariabler.');
+}
+const SESSION_COOKIE = 'session';
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 dagar
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 app.use(async (req, res, next) => {
   try {
     await ready;
@@ -12,6 +23,65 @@ app.use(async (req, res, next) => {
     next(err);
   }
 });
+
+// ---------- Auth ----------
+
+const PUBLIC_PATHS = new Set(['/login.html', '/api/login']);
+
+app.post('/api/login', async (req, res, next) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Användarnamn och lösenord krävs.' });
+    }
+    const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    const user = rows[0];
+    const valid = user && (await bcrypt.compare(password, user.password_hash));
+    if (!valid) {
+      return res.status(401).json({ error: 'Fel användarnamn eller lösenord.' });
+    }
+    const token = jwt.sign({ sub: user.id, username: user.username }, JWT_SECRET, {
+      expiresIn: SESSION_MAX_AGE_MS / 1000,
+    });
+    res.cookie(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: SESSION_MAX_AGE_MS,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/logout', (req, res) => {
+  res.clearCookie(SESSION_COOKIE);
+  res.json({ ok: true });
+});
+
+app.use((req, res, next) => {
+  if (PUBLIC_PATHS.has(req.path)) return next();
+  const token = req.cookies && req.cookies[SESSION_COOKIE];
+  const payload = token && verifySession(token);
+  if (!payload) {
+    if (req.path.startsWith('/api/')) {
+      return res.status(401).json({ error: 'Ej inloggad.' });
+    }
+    return res.redirect('/login.html');
+  }
+  req.user = payload;
+  next();
+});
+
+function verifySession(token) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    return null;
+  }
+}
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- Resources (anställda / underentreprenörer) ----------
