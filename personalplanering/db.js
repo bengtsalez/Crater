@@ -51,27 +51,23 @@ const ready = pool
       password_hash TEXT NOT NULL
     );
   `
-  )
-  .then(() =>
-    pool.query(
-      `INSERT INTO settings (key, value) VALUES ('next_project_number', $1)
-       ON CONFLICT (key) DO NOTHING`,
-      [String(FIRST_PROJECT_NUMBER)]
-    )
   );
+
+async function highestProjectNumber(client) {
+  const { rows } = await client.query(
+    `SELECT MAX(NULLIF(regexp_replace(project_number, '[^0-9]', '', 'g'), '')::integer) AS max_number
+     FROM projects`
+  );
+  return rows[0].max_number ? Number(rows[0].max_number) : FIRST_PROJECT_NUMBER - 1;
+}
 
 async function nextProjectNumber() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query(
-      "SELECT value FROM settings WHERE key = 'next_project_number' FOR UPDATE"
-    );
-    const current = Number(rows[0].value);
-    await client.query(
-      "UPDATE settings SET value = $1 WHERE key = 'next_project_number'",
-      [String(current + 1)]
-    );
+    // Serialize against concurrent inserts since there's no single counter row to lock.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('next_project_number'))");
+    const current = (await highestProjectNumber(client)) + 1;
     await client.query('COMMIT');
     return 'P' + current;
   } catch (err) {
@@ -82,4 +78,4 @@ async function nextProjectNumber() {
   }
 }
 
-module.exports = { pool, ready, nextProjectNumber };
+module.exports = { pool, ready, nextProjectNumber, highestProjectNumber };

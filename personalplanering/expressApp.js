@@ -3,7 +3,7 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-const { pool, ready, nextProjectNumber } = require('./db');
+const { pool, ready, nextProjectNumber, highestProjectNumber } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -155,10 +155,8 @@ app.get('/api/projects', async (req, res, next) => {
 
 app.get('/api/projects/next-number', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      "SELECT value FROM settings WHERE key = 'next_project_number'"
-    );
-    res.json({ next: 'P' + rows[0].value });
+    const highest = await highestProjectNumber(pool);
+    res.json({ next: 'P' + (highest + 1) });
   } catch (err) {
     next(err);
   }
