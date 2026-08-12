@@ -29,6 +29,9 @@
     monthCursor: startOfMonth(new Date()),
     monthFilterResourceId: '',
     myTasksProjectFilter: null,
+    projectDetailId: null,
+    projectDetailLineItems: [],
+    projectDetailTasks: [],
   };
 
   // ---------- Date helpers ----------
@@ -149,6 +152,7 @@
     renderProjectsTable();
     renderResourcesTables();
     renderMinSida();
+    if (state.projectDetailId) renderProjectDetail();
   }
 
   async function reloadAndRender() {
@@ -451,7 +455,7 @@
         }
         return;
       }
-      openProjectModal(state.projects.find((p) => p.id === id));
+      openProjectDetail(id);
     });
     document.getElementById('btn-add-project').addEventListener('click', () => openProjectModal(null));
   }
@@ -732,7 +736,7 @@
 
   // ---------- Task modal ----------
 
-  function openTaskModal(task) {
+  function openTaskModal(task, defaultProjectId) {
     const form = document.getElementById('form-task');
     form.reset();
     document.getElementById('task-modal-title').textContent = task ? 'Redigera uppgift' : 'Ny uppgift';
@@ -752,6 +756,7 @@
     } else {
       form.id.value = '';
       form.status.value = 'aktiv';
+      if (defaultProjectId) form.project_id.value = defaultProjectId;
       deleteBtn.hidden = true;
     }
     openModal('modal-task');
@@ -794,6 +799,228 @@
     });
   }
 
+  // ---------- Project detail ----------
+
+  async function openProjectDetail(projectId) {
+    state.projectDetailId = projectId;
+    await refreshProjectDetail();
+    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+    document.getElementById('tab-project-detail').classList.add('active');
+  }
+
+  function closeProjectDetail() {
+    state.projectDetailId = null;
+    activateTab('projects');
+  }
+
+  async function refreshProjectDetail() {
+    if (!state.projectDetailId) return;
+    const [lineItems, tasks] = await Promise.all([
+      api('GET', `/api/projects/${state.projectDetailId}/line-items`),
+      api('GET', `/api/projects/${state.projectDetailId}/tasks`),
+    ]);
+    state.projectDetailLineItems = lineItems;
+    state.projectDetailTasks = tasks;
+    renderProjectDetail();
+  }
+
+  function renderLineItemsTable(tbodySelector, items) {
+    const tbody = document.querySelector(tbodySelector);
+    tbody.innerHTML = items.length
+      ? items.map((li) => `
+          <tr data-id="${li.id}">
+            <td>${esc(li.description)}</td>
+            <td>${esc(li.date) || '–'}</td>
+            <td>${formatSum(li.amount)}</td>
+            <td><button type="button" class="danger row-delete">Ta bort</button></td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="4" class="empty-state">Inga rader ännu.</td></tr>';
+  }
+
+  function renderProjectDetail() {
+    const project = state.projects.find((p) => p.id === state.projectDetailId);
+    if (!project) {
+      closeProjectDetail();
+      return;
+    }
+
+    document.getElementById('pd-title').textContent = `${project.project_number} – ${project.name}`;
+    const statusLabels = { aktiv: 'Aktiv', planerad: 'Planerad', avslutad: 'Avslutad' };
+    const badge = document.getElementById('pd-status-badge');
+    badge.textContent = statusLabels[project.status] || project.status;
+    badge.className = `badge ${project.status}`;
+    document.getElementById('pd-meta').innerHTML = `
+      <span>Kund: ${esc(project.client) || '–'}</span>
+      <span>Projektledare: ${esc(project.project_manager_username) || '–'}</span>
+      <span>Byggstart: ${esc(project.start_date) || '–'}</span>
+      <span>Byggslut: ${esc(project.end_date) || '–'}</span>
+    `;
+
+    const ata = state.projectDetailLineItems.filter((li) => li.type === 'ata');
+    const expenses = state.projectDetailLineItems.filter((li) => li.type === 'utgift');
+    const baseSum = project.sum || 0;
+    const ataTotal = ata.reduce((s, li) => s + li.amount, 0);
+    const expenseTotal = expenses.reduce((s, li) => s + li.amount, 0);
+    const revenue = baseSum + ataTotal;
+    const result = revenue - expenseTotal;
+
+    document.getElementById('pd-financials').innerHTML = `
+      <div class="ms-stat"><div class="ms-stat-value">${formatSum(baseSum)}</div><div class="ms-stat-label">Kontraktssumma</div></div>
+      <div class="ms-stat"><div class="ms-stat-value">${formatSum(ataTotal)}</div><div class="ms-stat-label">ÄTA-tillägg</div></div>
+      <div class="ms-stat"><div class="ms-stat-value">${formatSum(revenue)}</div><div class="ms-stat-label">Intäkter totalt</div></div>
+      <div class="ms-stat"><div class="ms-stat-value">${formatSum(expenseTotal)}</div><div class="ms-stat-label">Utgifter totalt</div></div>
+      <div class="ms-stat"><div class="ms-stat-value">${formatSum(result)}</div><div class="ms-stat-label">Resultat</div></div>
+    `;
+
+    renderLineItemsTable('#change-orders-table tbody', ata);
+    renderLineItemsTable('#expenses-table tbody', expenses);
+
+    const staff = state.assignments.filter((a) => a.project_id === project.id)
+      .sort((a, b) => a.start_date.localeCompare(b.start_date));
+    document.querySelector('#pd-staff-table tbody').innerHTML = staff.length
+      ? staff.map((a) => `
+          <tr>
+            <td>${esc(a.resource_name)}</td>
+            <td>${a.resource_type === 'anstalld' ? 'Anställd' : 'Underentreprenör'}</td>
+            <td>${esc(a.start_date)}</td>
+            <td>${esc(a.end_date)}</td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="4" class="empty-state">Ingen personal inplanerad ännu.</td></tr>';
+
+    const tasks = state.projectDetailTasks;
+    document.getElementById('pd-tasks-list').innerHTML = tasks.length
+      ? tasks.map((t) => renderTaskRow(t, { showOwner: true, readOnly: !state.currentUser || t.user_id !== state.currentUser.id })).join('')
+      : '<div class="empty-state">Inga uppgifter kopplade till projektet ännu.</div>';
+  }
+
+  function initProjectDetailTab() {
+    document.getElementById('pd-back').addEventListener('click', closeProjectDetail);
+    document.getElementById('pd-edit').addEventListener('click', () => {
+      openProjectModal(state.projects.find((p) => p.id === state.projectDetailId));
+    });
+    document.getElementById('btn-add-change-order').addEventListener('click', () => openLineItemModal('ata', null));
+    document.getElementById('btn-add-expense').addEventListener('click', () => openLineItemModal('utgift', null));
+    document.getElementById('btn-add-project-task').addEventListener('click', () => openTaskModal(null, state.projectDetailId));
+
+    ['#change-orders-table tbody', '#expenses-table tbody'].forEach((selector) => {
+      document.querySelector(selector).addEventListener('click', async (e) => {
+        const tr = e.target.closest('tr[data-id]');
+        if (!tr) return;
+        const id = Number(tr.dataset.id);
+        const item = state.projectDetailLineItems.find((li) => li.id === id);
+        if (e.target.closest('.row-delete')) {
+          if (!confirm('Ta bort raden?')) return;
+          try {
+            await api('DELETE', `/api/line-items/${id}`);
+            await refreshProjectDetail();
+          } catch (err) {
+            alert(err.message);
+          }
+          return;
+        }
+        openLineItemModal(item.type, item);
+      });
+    });
+
+    document.getElementById('pd-tasks-list').addEventListener('click', async (e) => {
+      const row = e.target.closest('.task-row');
+      if (!row) return;
+      const id = Number(row.dataset.id);
+      const task = state.projectDetailTasks.find((t) => t.id === id);
+      if (!task || !state.currentUser || task.user_id !== state.currentUser.id) return;
+      if (e.target.closest('.task-delete')) {
+        if (!confirm('Ta bort uppgiften?')) return;
+        try {
+          await api('DELETE', `/api/tasks/${id}`);
+          await reloadAndRender();
+          await refreshProjectDetail();
+        } catch (err) {
+          alert(err.message);
+        }
+        return;
+      }
+      if (e.target.closest('.task-toggle')) {
+        const newStatus = task.status === 'avslutad' ? 'aktiv' : 'avslutad';
+        try {
+          await api('PUT', `/api/tasks/${id}`, { status: newStatus });
+          await reloadAndRender();
+          await refreshProjectDetail();
+        } catch (err) {
+          alert(err.message);
+        }
+        return;
+      }
+      if (e.target.closest('.task-edit')) {
+        openTaskModal(task);
+      }
+    });
+  }
+
+  // ---------- Line item modal ----------
+
+  function openLineItemModal(type, item) {
+    const form = document.getElementById('form-line-item');
+    form.reset();
+    form.project_id.value = state.projectDetailId;
+    form.type.value = type;
+    const label = type === 'ata' ? 'ÄTA' : 'utgift';
+    document.getElementById('line-item-modal-title').textContent = item ? `Redigera ${label}` : `Ny ${label}`;
+    const deleteBtn = document.getElementById('line-item-delete-btn');
+    if (item) {
+      form.id.value = item.id;
+      form.description.value = item.description;
+      form.amount.value = item.amount;
+      form.date.value = item.date || '';
+      form.notes.value = item.notes || '';
+      deleteBtn.hidden = false;
+    } else {
+      form.id.value = '';
+      deleteBtn.hidden = true;
+    }
+    openModal('modal-line-item');
+  }
+
+  function initLineItemModal() {
+    const form = document.getElementById('form-line-item');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        project_id: Number(form.project_id.value),
+        type: form.type.value,
+        description: form.description.value.trim(),
+        amount: Number(form.amount.value),
+        date: form.date.value,
+        notes: form.notes.value.trim(),
+      };
+      const id = form.id.value;
+      try {
+        if (id) {
+          await api('PUT', `/api/line-items/${id}`, payload);
+        } else {
+          await api('POST', '/api/line-items', payload);
+        }
+        closeModal('modal-line-item');
+        await refreshProjectDetail();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+    document.getElementById('line-item-delete-btn').addEventListener('click', async () => {
+      const id = form.id.value;
+      if (!id || !confirm('Ta bort raden?')) return;
+      try {
+        await api('DELETE', `/api/line-items/${id}`);
+        closeModal('modal-line-item');
+        await refreshProjectDetail();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+
   // ---------- Min sida ----------
 
   function renderOverview() {
@@ -805,26 +1032,29 @@
     document.getElementById('ms-project-sum').textContent = formatSum(total);
   }
 
-  function renderTaskRow(t) {
+  function renderTaskRow(t, opts = {}) {
     const projectLabel = t.project_id
       ? `${esc(t.project_number)} – ${esc(t.project_name)}`
       : '<span class="task-no-project">Inget projekt</span>';
     const dueLabel = t.due_date ? esc(t.due_date) : '';
     const toggleLabel = t.status === 'avslutad' ? 'Återöppna' : 'Klarmarkera';
+    const actions = opts.readOnly
+      ? ''
+      : `
+        <button type="button" class="ghost task-toggle">${toggleLabel}</button>
+        <button type="button" class="ghost task-edit">Redigera</button>
+        <button type="button" class="danger task-delete">Ta bort</button>
+      `;
     return `
       <div class="task-row" data-id="${t.id}">
         <div class="task-main">
           <div class="task-title">${esc(t.title)}</div>
           <div class="task-meta">
-            <span class="task-project">${projectLabel}</span>
+            ${opts.showOwner ? `<span class="task-owner">${esc(t.username)}</span>` : `<span class="task-project">${projectLabel}</span>`}
             ${dueLabel ? `<span class="task-due">Förfaller: ${dueLabel}</span>` : ''}
           </div>
         </div>
-        <div class="task-actions">
-          <button type="button" class="ghost task-toggle">${toggleLabel}</button>
-          <button type="button" class="ghost task-edit">Redigera</button>
-          <button type="button" class="danger task-delete">Ta bort</button>
-        </div>
+        <div class="task-actions">${actions}</div>
       </div>
     `;
   }
@@ -914,11 +1144,13 @@
     initProjectsTable();
     initResourcesTables();
     initMinSidaTab();
+    initProjectDetailTab();
     initModalDismiss();
     initProjectModal();
     initResourceModal();
     initAssignmentModal();
     initTaskModal();
+    initLineItemModal();
 
     try {
       await loadAll();

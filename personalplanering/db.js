@@ -64,6 +64,17 @@ const ready = pool
       created_at TIMESTAMP NOT NULL DEFAULT now(),
       completed_at TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS project_line_items (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      type TEXT NOT NULL CHECK (type IN ('ata', 'utgift')),
+      description TEXT NOT NULL,
+      amount REAL NOT NULL,
+      date TEXT,
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT now()
+    );
   `
   );
 

@@ -293,7 +293,7 @@ button.danger:hover { background: #fee2e2; }
 .modal-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 
 /* ---- Min sida ---- */
-.ms-overview { display: flex; gap: 16px; margin-bottom: 20px; }
+.ms-overview { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
 .ms-stat {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -329,3 +329,7 @@ button.danger:hover { background: #fee2e2; }
   padding: 24px 12px;
   font-size: 14px;
 }
+
+/* ---- Projektdetalj ---- */
+.pd-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.pd-meta { color: var(--text-muted); font-size: 13px; margin-bottom: 16px; display: flex; gap: 16px; flex-wrap: wrap; }

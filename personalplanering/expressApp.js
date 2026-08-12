@@ -414,4 +414,82 @@ app.delete('/api/tasks/:id', async (req, res, next) => {
   }
 });
 
+app.get('/api/projects/:id/tasks', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT t.*, u.username
+       FROM tasks t
+       JOIN users u ON u.id = t.user_id
+       WHERE t.project_id = $1
+       ORDER BY t.created_at DESC`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------- Projektrader (ÄTA / utgifter) ----------
+
+app.get('/api/projects/:id/line-items', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM project_line_items WHERE project_id = $1 ORDER BY date NULLS LAST, id',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/line-items', async (req, res, next) => {
+  try {
+    const { project_id, type, description, amount, date, notes } = req.body;
+    if (!project_id || !['ata', 'utgift'].includes(type) || !description || !description.trim() || amount === undefined || amount === '') {
+      return res.status(400).json({ error: 'Projekt, typ, beskrivning och belopp krävs.' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO project_line_items (project_id, type, description, amount, date, notes)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [project_id, type, description.trim(), Number(amount), date || null, notes || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put('/api/line-items/:id', async (req, res, next) => {
+  try {
+    const existingResult = await pool.query('SELECT * FROM project_line_items WHERE id = $1', [req.params.id]);
+    const existing = existingResult.rows[0];
+    if (!existing) return res.status(404).json({ error: 'Hittades inte.' });
+    const b = req.body;
+    const { rows } = await pool.query(
+      `UPDATE project_line_items SET description=$1, amount=$2, date=$3, notes=$4 WHERE id=$5 RETURNING *`,
+      [
+        b.description ?? existing.description,
+        b.amount ?? existing.amount,
+        b.date ?? existing.date,
+        b.notes ?? existing.notes,
+        req.params.id,
+      ]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete('/api/line-items/:id', async (req, res, next) => {
+  try {
+    await pool.query('DELETE FROM project_line_items WHERE id = $1', [req.params.id]);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = app;

@@ -123,6 +123,56 @@
     <h3 class="group-title">Slutförda</h3>
     <div id="tasks-done-list" class="task-list"></div>
   </section>
+
+  <!-- PROJEKTDETALJ -->
+  <section id="tab-project-detail" class="tab-panel">
+    <div class="toolbar">
+      <button type="button" id="pd-back" class="ghost">‹ Tillbaka till projekt</button>
+      <div class="spacer"></div>
+      <button type="button" id="pd-edit" class="primary">Redigera projekt</button>
+    </div>
+
+    <div class="pd-header">
+      <h2 id="pd-title"></h2>
+      <span id="pd-status-badge" class="badge"></span>
+    </div>
+    <div class="pd-meta" id="pd-meta"></div>
+
+    <div class="ms-overview" id="pd-financials"></div>
+
+    <div class="toolbar">
+      <h3 class="group-title" style="margin:0">ÄTA-arbeten</h3>
+      <div class="spacer"></div>
+      <button type="button" id="btn-add-change-order" class="primary">+ Ny ÄTA</button>
+    </div>
+    <table class="data-table" id="change-orders-table">
+      <thead><tr><th>Beskrivning</th><th>Datum</th><th>Belopp</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="toolbar">
+      <h3 class="group-title" style="margin:0">Utgifter</h3>
+      <div class="spacer"></div>
+      <button type="button" id="btn-add-expense" class="primary">+ Ny utgift</button>
+    </div>
+    <table class="data-table" id="expenses-table">
+      <thead><tr><th>Beskrivning</th><th>Datum</th><th>Belopp</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <h3 class="group-title">Inplanerad personal</h3>
+    <table class="data-table" id="pd-staff-table">
+      <thead><tr><th>Namn</th><th>Typ</th><th>Från</th><th>Till</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="toolbar">
+      <h3 class="group-title" style="margin:0">Uppgifter</h3>
+      <div class="spacer"></div>
+      <button type="button" id="btn-add-project-task" class="primary">+ Ny uppgift</button>
+    </div>
+    <div id="pd-tasks-list" class="task-list"></div>
+  </section>
 </main>
 
 <!-- MODAL: Projekt -->
@@ -229,6 +279,26 @@
     </label>
     <div class="modal-actions">
       <button type="button" class="danger" id="task-delete-btn" hidden>Ta bort</button>
+      <div class="spacer"></div>
+      <button type="button" class="ghost" data-close>Avbryt</button>
+      <button type="submit" class="primary">Spara</button>
+    </div>
+  </form>
+</div>
+
+<!-- MODAL: Projektrad (ÄTA / utgift) -->
+<div class="modal-backdrop" id="modal-line-item">
+  <form class="modal" id="form-line-item">
+    <h2 id="line-item-modal-title">Ny post</h2>
+    <input type="hidden" name="id" />
+    <input type="hidden" name="project_id" />
+    <input type="hidden" name="type" />
+    <label>Beskrivning *<input name="description" required /></label>
+    <label>Belopp (kr) *<input name="amount" type="number" step="1" required /></label>
+    <label>Datum<input name="date" type="date" /></label>
+    <label>Anteckning<textarea name="notes" rows="2"></textarea></label>
+    <div class="modal-actions">
+      <button type="button" class="danger" id="line-item-delete-btn" hidden>Ta bort</button>
       <div class="spacer"></div>
       <button type="button" class="ghost" data-close>Avbryt</button>
       <button type="submit" class="primary">Spara</button>
