@@ -84,6 +84,21 @@ function verifySession(token) {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ---------- Aktuell användare ----------
+
+app.get('/api/me', (req, res) => {
+  res.json({ id: req.user.sub, username: req.user.username });
+});
+
+app.get('/api/users', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT id, username FROM users ORDER BY username');
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ---------- Resources (anställda / underentreprenörer) ----------
 
 app.get('/api/resources', async (req, res, next) => {
@@ -144,9 +159,15 @@ app.delete('/api/resources/:id', async (req, res, next) => {
 
 // ---------- Projects ----------
 
+const PROJECT_SELECT = `
+  SELECT p.*, u.username AS project_manager_username
+  FROM projects p
+  LEFT JOIN users u ON u.id = p.project_manager_user_id
+`;
+
 app.get('/api/projects', async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM projects ORDER BY project_number');
+    const { rows } = await pool.query(`${PROJECT_SELECT} ORDER BY p.project_number`);
     res.json(rows);
   } catch (err) {
     next(err);
@@ -164,19 +185,19 @@ app.get('/api/projects/next-number', async (req, res, next) => {
 
 app.post('/api/projects', async (req, res, next) => {
   try {
-    const { name, client, project_manager, sum, start_date, end_date, status, notes } = req.body;
+    const { name, client, project_manager_user_id, sum, start_date, end_date, status, notes } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Namn krävs.' });
     }
     const project_number = await nextProjectNumber();
-    const { rows } = await pool.query(
-      `INSERT INTO projects (project_number, name, client, project_manager, sum, start_date, end_date, status, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    const inserted = await pool.query(
+      `INSERT INTO projects (project_number, name, client, project_manager_user_id, sum, start_date, end_date, status, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
       [
         project_number,
         name,
         client || null,
-        project_manager || null,
+        project_manager_user_id || null,
         sum === '' || sum === undefined ? null : sum,
         start_date || null,
         end_date || null,
@@ -184,6 +205,7 @@ app.post('/api/projects', async (req, res, next) => {
         notes || null,
       ]
     );
+    const { rows } = await pool.query(`${PROJECT_SELECT} WHERE p.id = $1`, [inserted.rows[0].id]);
     res.status(201).json(rows[0]);
   } catch (err) {
     next(err);
@@ -196,14 +218,14 @@ app.put('/api/projects/:id', async (req, res, next) => {
     const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ error: 'Hittades inte.' });
     const b = req.body;
-    const { rows } = await pool.query(
-      `UPDATE projects SET project_number=$1, name=$2, client=$3, project_manager=$4, sum=$5, start_date=$6, end_date=$7, status=$8, notes=$9
-       WHERE id=$10 RETURNING *`,
+    await pool.query(
+      `UPDATE projects SET project_number=$1, name=$2, client=$3, project_manager_user_id=$4, sum=$5, start_date=$6, end_date=$7, status=$8, notes=$9
+       WHERE id=$10`,
       [
         b.project_number ?? existing.project_number,
         b.name ?? existing.name,
         b.client ?? existing.client,
-        b.project_manager ?? existing.project_manager,
+        b.project_manager_user_id !== undefined ? b.project_manager_user_id : existing.project_manager_user_id,
         b.sum === '' ? null : (b.sum ?? existing.sum),
         b.start_date ?? existing.start_date,
         b.end_date ?? existing.end_date,
@@ -212,6 +234,7 @@ app.put('/api/projects/:id', async (req, res, next) => {
         req.params.id,
       ]
     );
+    const { rows } = await pool.query(`${PROJECT_SELECT} WHERE p.id = $1`, [req.params.id]);
     res.json(rows[0]);
   } catch (err) {
     next(err);
@@ -298,6 +321,93 @@ app.put('/api/assignments/:id', async (req, res, next) => {
 app.delete('/api/assignments/:id', async (req, res, next) => {
   try {
     await pool.query('DELETE FROM assignments WHERE id = $1', [req.params.id]);
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------- Tasks (Min sida) ----------
+
+const TASK_SELECT = `
+  SELECT t.*, p.project_number, p.name AS project_name
+  FROM tasks t
+  LEFT JOIN projects p ON p.id = t.project_id
+`;
+
+app.get('/api/tasks', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `${TASK_SELECT} WHERE t.user_id = $1 ORDER BY t.created_at DESC`,
+      [req.user.sub]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/tasks', async (req, res, next) => {
+  try {
+    const { title, notes, project_id, status, due_date } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Titel krävs.' });
+    }
+    const inserted = await pool.query(
+      `INSERT INTO tasks (user_id, project_id, title, notes, status, due_date)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [req.user.sub, project_id || null, title.trim(), notes || null, status || 'aktiv', due_date || null]
+    );
+    const { rows } = await pool.query(`${TASK_SELECT} WHERE t.id = $1`, [inserted.rows[0].id]);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put('/api/tasks/:id', async (req, res, next) => {
+  try {
+    const existingResult = await pool.query('SELECT * FROM tasks WHERE id = $1', [req.params.id]);
+    const existing = existingResult.rows[0];
+    if (!existing || existing.user_id !== req.user.sub) {
+      return res.status(404).json({ error: 'Hittades inte.' });
+    }
+    const b = req.body;
+    const newStatus = b.status ?? existing.status;
+    let completed_at = existing.completed_at;
+    if (newStatus === 'avslutad' && existing.status !== 'avslutad') {
+      completed_at = new Date();
+    } else if (newStatus !== 'avslutad') {
+      completed_at = null;
+    }
+    const updated = await pool.query(
+      `UPDATE tasks SET project_id=$1, title=$2, notes=$3, status=$4, due_date=$5, completed_at=$6
+       WHERE id=$7 RETURNING id`,
+      [
+        b.project_id !== undefined ? b.project_id : existing.project_id,
+        b.title ?? existing.title,
+        b.notes ?? existing.notes,
+        newStatus,
+        b.due_date ?? existing.due_date,
+        completed_at,
+        req.params.id,
+      ]
+    );
+    const { rows } = await pool.query(`${TASK_SELECT} WHERE t.id = $1`, [updated.rows[0].id]);
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete('/api/tasks/:id', async (req, res, next) => {
+  try {
+    const existingResult = await pool.query('SELECT user_id FROM tasks WHERE id = $1', [req.params.id]);
+    const existing = existingResult.rows[0];
+    if (!existing || existing.user_id !== req.user.sub) {
+      return res.status(404).json({ error: 'Hittades inte.' });
+    }
+    await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.id]);
     res.status(204).end();
   } catch (err) {
     next(err);

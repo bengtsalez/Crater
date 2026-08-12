@@ -50,6 +50,20 @@ const ready = pool
       username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL
     );
+
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_manager_user_id INTEGER REFERENCES users(id);
+
+    CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'aktiv',
+      due_date TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT now(),
+      completed_at TIMESTAMP
+    );
   `
   );
 

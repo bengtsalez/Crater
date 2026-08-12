@@ -14,6 +14,7 @@
     <button class="tab-btn" data-tab="month">Månadskalender</button>
     <button class="tab-btn" data-tab="projects">Projekt</button>
     <button class="tab-btn" data-tab="resources">Personal</button>
+    <button class="tab-btn" data-tab="minsida">Min sida</button>
   </nav>
   <div class="spacer"></div>
   <button id="btn-logout">Logga ut</button>
@@ -90,6 +91,38 @@
       <tbody></tbody>
     </table>
   </section>
+
+  <!-- MIN SIDA -->
+  <section id="tab-minsida" class="tab-panel">
+    <div class="ms-overview">
+      <div class="ms-stat">
+        <div class="ms-stat-value" id="ms-project-count">0</div>
+        <div class="ms-stat-label">Projekt som projektledare</div>
+      </div>
+      <div class="ms-stat">
+        <div class="ms-stat-value" id="ms-project-sum">0 kr</div>
+        <div class="ms-stat-label">Totalt projektvärde</div>
+      </div>
+    </div>
+
+    <div class="toolbar" id="ms-filter-toolbar" hidden>
+      <span class="filter-label">Filtrerat på projekt: <strong id="ms-filter-project-name"></strong></span>
+      <button type="button" id="ms-clear-filter" class="ghost">Rensa filter</button>
+      <div class="spacer"></div>
+    </div>
+
+    <div class="toolbar">
+      <h2 class="group-title" style="margin:0">Mina uppgifter</h2>
+      <div class="spacer"></div>
+      <button id="btn-add-task" class="primary">+ Ny uppgift</button>
+    </div>
+
+    <h3 class="group-title">Aktiva</h3>
+    <div id="tasks-active-list" class="task-list"></div>
+
+    <h3 class="group-title">Slutförda</h3>
+    <div id="tasks-done-list" class="task-list"></div>
+  </section>
 </main>
 
 <!-- MODAL: Projekt -->
@@ -100,7 +133,11 @@
     <label>Projektnummer<input name="project_number" required readonly /></label>
     <label>Namn *<input name="name" required /></label>
     <label>Kund<input name="client" /></label>
-    <label>Projektledare<input name="project_manager" /></label>
+    <label>Projektledare
+      <select name="project_manager_user_id">
+        <option value="">Ingen vald</option>
+      </select>
+    </label>
     <label>Summa (kr)<input name="sum" type="number" step="1" /></label>
     <div class="row-2">
       <label>Byggstart<input name="start_date" type="date" /></label>
@@ -109,6 +146,7 @@
     <label>Status
       <select name="status">
         <option value="aktiv">Aktiv</option>
+        <option value="planerad">Planerad</option>
         <option value="avslutad">Avslutad</option>
       </select>
     </label>
@@ -163,6 +201,34 @@
     <label>Anteckning<input name="note" /></label>
     <div class="modal-actions">
       <button type="button" class="danger" id="assignment-delete-btn" hidden>Ta bort</button>
+      <div class="spacer"></div>
+      <button type="button" class="ghost" data-close>Avbryt</button>
+      <button type="submit" class="primary">Spara</button>
+    </div>
+  </form>
+</div>
+
+<!-- MODAL: Uppgift -->
+<div class="modal-backdrop" id="modal-task">
+  <form class="modal" id="form-task">
+    <h2 id="task-modal-title">Ny uppgift</h2>
+    <input type="hidden" name="id" />
+    <label>Titel *<input name="title" required /></label>
+    <label>Projekt
+      <select name="project_id">
+        <option value="">Inget projekt</option>
+      </select>
+    </label>
+    <label>Förfallodatum<input name="due_date" type="date" /></label>
+    <label>Anteckning<textarea name="notes" rows="2"></textarea></label>
+    <label>Status
+      <select name="status">
+        <option value="aktiv">Aktiv</option>
+        <option value="avslutad">Avslutad</option>
+      </select>
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="danger" id="task-delete-btn" hidden>Ta bort</button>
       <div class="spacer"></div>
       <button type="button" class="ghost" data-close>Avbryt</button>
       <button type="submit" class="primary">Spara</button>

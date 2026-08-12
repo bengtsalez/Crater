@@ -21,10 +21,14 @@
     resources: [],
     projects: [],
     assignments: [],
+    users: [],
+    currentUser: null,
+    tasks: [],
     tlStart: mondayOf(new Date()),
     tlFilterType: '',
     monthCursor: startOfMonth(new Date()),
     monthFilterResourceId: '',
+    myTasksProjectFilter: null,
   };
 
   // ---------- Date helpers ----------
@@ -89,6 +93,15 @@
     return new Intl.NumberFormat('sv-SE').format(sum) + ' kr';
   }
 
+  function taskCountLabel(n) {
+    return `${n} uppgift${n === 1 ? '' : 'er'}`;
+  }
+
+  function myOpenTaskCountForProject(projectId) {
+    if (!state.currentUser) return 0;
+    return state.tasks.filter((t) => t.project_id === projectId && t.status !== 'avslutad').length;
+  }
+
   async function api(method, url, body) {
     const res = await fetch(url, {
       method,
@@ -114,14 +127,20 @@
   // ---------- Data loading ----------
 
   async function loadAll() {
-    const [resources, projects, assignments] = await Promise.all([
+    const [resources, projects, assignments, users, currentUser, tasks] = await Promise.all([
       api('GET', '/api/resources'),
       api('GET', '/api/projects'),
       api('GET', '/api/assignments'),
+      api('GET', '/api/users'),
+      api('GET', '/api/me'),
+      api('GET', '/api/tasks'),
     ]);
     state.resources = resources;
     state.projects = projects;
     state.assignments = assignments;
+    state.users = users;
+    state.currentUser = currentUser;
+    state.tasks = tasks;
   }
 
   function renderAll() {
@@ -129,6 +148,7 @@
     renderMonth();
     renderProjectsTable();
     renderResourcesTables();
+    renderMinSida();
   }
 
   async function reloadAndRender() {
@@ -138,14 +158,16 @@
 
   // ---------- Tabs ----------
 
+  function activateTab(name) {
+    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+    document.querySelector(`.tab-btn[data-tab="${name}"]`).classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+  }
+
   function initTabs() {
     document.querySelectorAll('.tab-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
-        document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-      });
+      btn.addEventListener('click', () => activateTab(btn.dataset.tab));
     });
   }
 
@@ -159,15 +181,24 @@
 
   function renderTimelineLegend() {
     const legend = document.getElementById('timeline-legend');
-    const projectIds = [...new Set(state.assignments.map((a) => a.project_id))];
-    const projects = state.projects.filter((p) => projectIds.includes(p.id))
+    const assignedIds = new Set(state.assignments.map((a) => a.project_id));
+    const planeradIds = new Set(state.projects.filter((p) => p.status === 'planerad').map((p) => p.id));
+    const projectIds = new Set([...assignedIds, ...planeradIds]);
+    const projects = state.projects.filter((p) => projectIds.has(p.id))
       .sort((a, b) => a.project_number.localeCompare(b.project_number));
-    legend.innerHTML = projects.map((p) => `
-      <div class="legend-item">
-        <span class="legend-swatch" style="background:${colorForProject(p.id)}"></span>
-        <span>${esc(p.project_number)} – ${esc(p.name)}</span>
-      </div>
-    `).join('');
+    legend.innerHTML = projects.map((p) => {
+      const count = p.status === 'planerad' ? myOpenTaskCountForProject(p.id) : 0;
+      const badge = count > 0
+        ? `<span class="badge planerad task-count-badge" data-project="${p.id}">${taskCountLabel(count)}</span>`
+        : '';
+      return `
+        <div class="legend-item">
+          <span class="legend-swatch" style="background:${colorForProject(p.id)}"></span>
+          <span>${esc(p.project_number)} – ${esc(p.name)}</span>
+          ${badge}
+        </div>
+      `;
+    }).join('');
   }
 
   function renderTimeline() {
@@ -235,9 +266,13 @@
       .map((p) => {
         const dayIndex = days.findIndex((d) => toISO(d) === p.start_date);
         const left = TL_LABEL_WIDTH + dayIndex * TL_DAY_WIDTH;
+        const count = p.status === 'planerad' ? myOpenTaskCountForProject(p.id) : 0;
+        const badge = count > 0
+          ? `<span class="badge planerad task-count-badge" data-project="${p.id}">${taskCountLabel(count)}</span>`
+          : '';
         return `
           <div class="tl-start-marker" style="left:${left}px"></div>
-          <div class="tl-start-flag" style="left:${left}px">${esc(p.project_number)} start</div>
+          <div class="tl-start-flag" style="left:${left}px">${esc(p.project_number)} start${badge}</div>
         `;
       }).join('');
 
@@ -262,6 +297,12 @@
     });
   }
 
+  function goToMyTasksForProject(projectId) {
+    state.myTasksProjectFilter = projectId;
+    renderMinSida();
+    activateTab('minsida');
+  }
+
   function initTimelineToolbar() {
     document.getElementById('tl-prev').addEventListener('click', () => {
       state.tlStart = addDays(state.tlStart, -7);
@@ -280,6 +321,15 @@
       renderTimeline();
     });
     document.getElementById('btn-add-assignment').addEventListener('click', () => openAssignmentModal({}));
+
+    document.getElementById('timeline-legend').addEventListener('click', (e) => {
+      const badgeEl = e.target.closest('.task-count-badge');
+      if (badgeEl) goToMyTasksForProject(Number(badgeEl.dataset.project));
+    });
+    document.getElementById('timeline-wrap').addEventListener('click', (e) => {
+      const badgeEl = e.target.closest('.task-count-badge');
+      if (badgeEl) goToMyTasksForProject(Number(badgeEl.dataset.project));
+    });
   }
 
   // ---------- Month calendar ----------
@@ -374,11 +424,11 @@
         <td>${esc(p.project_number)}</td>
         <td>${esc(p.name)}</td>
         <td>${esc(p.client) || '–'}</td>
-        <td>${esc(p.project_manager) || '–'}</td>
+        <td>${esc(p.project_manager_username) || '–'}</td>
         <td>${formatSum(p.sum)}</td>
         <td>${esc(p.start_date) || '–'}</td>
         <td>${esc(p.end_date) || '–'}</td>
-        <td><span class="badge ${p.status}">${p.status === 'aktiv' ? 'Aktiv' : 'Avslutad'}</span></td>
+        <td><span class="badge ${p.status}">${{ aktiv: 'Aktiv', planerad: 'Planerad', avslutad: 'Avslutad' }[p.status] || p.status}</span></td>
         <td><button type="button" class="danger row-delete">Ta bort</button></td>
       </tr>
     `).join('');
@@ -476,13 +526,17 @@
     form.reset();
     document.getElementById('project-modal-title').textContent = project ? 'Redigera projekt' : 'Nytt projekt';
     const deleteBtn = document.getElementById('project-delete-btn');
+
+    form.project_manager_user_id.innerHTML = '<option value="">Ingen vald</option>' +
+      state.users.map((u) => `<option value="${u.id}">${esc(u.username)}</option>`).join('');
+
     if (project) {
       form.id.value = project.id;
       form.project_number.value = project.project_number;
       form.project_number.readOnly = false;
       form.name.value = project.name;
       form.client.value = project.client || '';
-      form.project_manager.value = project.project_manager || '';
+      form.project_manager_user_id.value = project.project_manager_user_id || '';
       form.sum.value = project.sum ?? '';
       form.start_date.value = project.start_date || '';
       form.end_date.value = project.end_date || '';
@@ -512,7 +566,7 @@
         project_number: form.project_number.value.trim(),
         name: form.name.value.trim(),
         client: form.client.value.trim(),
-        project_manager: form.project_manager.value.trim(),
+        project_manager_user_id: form.project_manager_user_id.value ? Number(form.project_manager_user_id.value) : null,
         sum: form.sum.value === '' ? '' : Number(form.sum.value),
         start_date: form.start_date.value,
         end_date: form.end_date.value,
@@ -676,6 +730,173 @@
     });
   }
 
+  // ---------- Task modal ----------
+
+  function openTaskModal(task) {
+    const form = document.getElementById('form-task');
+    form.reset();
+    document.getElementById('task-modal-title').textContent = task ? 'Redigera uppgift' : 'Ny uppgift';
+    const deleteBtn = document.getElementById('task-delete-btn');
+
+    form.project_id.innerHTML = '<option value="">Inget projekt</option>' +
+      state.projects.map((p) => `<option value="${p.id}">${esc(p.project_number)} – ${esc(p.name)}</option>`).join('');
+
+    if (task) {
+      form.id.value = task.id;
+      form.title.value = task.title;
+      form.project_id.value = task.project_id || '';
+      form.due_date.value = task.due_date || '';
+      form.notes.value = task.notes || '';
+      form.status.value = task.status;
+      deleteBtn.hidden = false;
+    } else {
+      form.id.value = '';
+      form.status.value = 'aktiv';
+      deleteBtn.hidden = true;
+    }
+    openModal('modal-task');
+  }
+
+  function initTaskModal() {
+    const form = document.getElementById('form-task');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        title: form.title.value.trim(),
+        project_id: form.project_id.value ? Number(form.project_id.value) : null,
+        due_date: form.due_date.value,
+        notes: form.notes.value.trim(),
+        status: form.status.value,
+      };
+      const id = form.id.value;
+      try {
+        if (id) {
+          await api('PUT', `/api/tasks/${id}`, payload);
+        } else {
+          await api('POST', '/api/tasks', payload);
+        }
+        closeModal('modal-task');
+        await reloadAndRender();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+    document.getElementById('task-delete-btn').addEventListener('click', async () => {
+      const id = form.id.value;
+      if (!id || !confirm('Ta bort uppgiften?')) return;
+      try {
+        await api('DELETE', `/api/tasks/${id}`);
+        closeModal('modal-task');
+        await reloadAndRender();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+
+  // ---------- Min sida ----------
+
+  function renderOverview() {
+    const myProjects = state.projects.filter(
+      (p) => state.currentUser && p.project_manager_user_id === state.currentUser.id
+    );
+    const total = myProjects.reduce((sum, p) => sum + (p.sum || 0), 0);
+    document.getElementById('ms-project-count').textContent = myProjects.length;
+    document.getElementById('ms-project-sum').textContent = formatSum(total);
+  }
+
+  function renderTaskRow(t) {
+    const projectLabel = t.project_id
+      ? `${esc(t.project_number)} – ${esc(t.project_name)}`
+      : '<span class="task-no-project">Inget projekt</span>';
+    const dueLabel = t.due_date ? esc(t.due_date) : '';
+    const toggleLabel = t.status === 'avslutad' ? 'Återöppna' : 'Klarmarkera';
+    return `
+      <div class="task-row" data-id="${t.id}">
+        <div class="task-main">
+          <div class="task-title">${esc(t.title)}</div>
+          <div class="task-meta">
+            <span class="task-project">${projectLabel}</span>
+            ${dueLabel ? `<span class="task-due">Förfaller: ${dueLabel}</span>` : ''}
+          </div>
+        </div>
+        <div class="task-actions">
+          <button type="button" class="ghost task-toggle">${toggleLabel}</button>
+          <button type="button" class="ghost task-edit">Redigera</button>
+          <button type="button" class="danger task-delete">Ta bort</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMinSida() {
+    renderOverview();
+
+    const filterToolbar = document.getElementById('ms-filter-toolbar');
+    let tasks = state.tasks;
+    if (state.myTasksProjectFilter) {
+      tasks = tasks.filter((t) => t.project_id === state.myTasksProjectFilter);
+      const project = state.projects.find((p) => p.id === state.myTasksProjectFilter);
+      document.getElementById('ms-filter-project-name').textContent =
+        project ? `${project.project_number} – ${project.name}` : '';
+      filterToolbar.hidden = false;
+    } else {
+      filterToolbar.hidden = true;
+    }
+
+    const active = tasks.filter((t) => t.status !== 'avslutad');
+    const done = tasks.filter((t) => t.status === 'avslutad');
+
+    document.getElementById('tasks-active-list').innerHTML = active.length
+      ? active.map(renderTaskRow).join('')
+      : '<div class="empty-state">Inga aktiva uppgifter.</div>';
+
+    document.getElementById('tasks-done-list').innerHTML = done.length
+      ? done.map(renderTaskRow).join('')
+      : '<div class="empty-state">Inga slutförda uppgifter.</div>';
+  }
+
+  function initMinSidaTab() {
+    document.getElementById('btn-add-task').addEventListener('click', () => openTaskModal(null));
+
+    document.getElementById('ms-clear-filter').addEventListener('click', () => {
+      state.myTasksProjectFilter = null;
+      renderMinSida();
+    });
+
+    ['#tasks-active-list', '#tasks-done-list'].forEach((selector) => {
+      document.querySelector(selector).addEventListener('click', async (e) => {
+        const row = e.target.closest('.task-row');
+        if (!row) return;
+        const id = Number(row.dataset.id);
+        const task = state.tasks.find((t) => t.id === id);
+        if (e.target.closest('.task-delete')) {
+          if (!confirm('Ta bort uppgiften?')) return;
+          try {
+            await api('DELETE', `/api/tasks/${id}`);
+            await reloadAndRender();
+          } catch (err) {
+            alert(err.message);
+          }
+          return;
+        }
+        if (e.target.closest('.task-toggle')) {
+          const newStatus = task.status === 'avslutad' ? 'aktiv' : 'avslutad';
+          try {
+            await api('PUT', `/api/tasks/${id}`, { status: newStatus });
+            await reloadAndRender();
+          } catch (err) {
+            alert(err.message);
+          }
+          return;
+        }
+        if (e.target.closest('.task-edit')) {
+          openTaskModal(task);
+        }
+      });
+    });
+  }
+
   // ---------- Init ----------
 
   function initLogout() {
@@ -692,10 +913,12 @@
     initMonthToolbar();
     initProjectsTable();
     initResourcesTables();
+    initMinSidaTab();
     initModalDismiss();
     initProjectModal();
     initResourceModal();
     initAssignmentModal();
+    initTaskModal();
 
     try {
       await loadAll();
