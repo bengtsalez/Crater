@@ -26,6 +26,7 @@
     tasks: [],
     tlStart: mondayOf(new Date()),
     tlFilterType: '',
+    tlSearchQuery: '',
     monthCursor: startOfMonth(new Date()),
     monthFilterResourceId: '',
     myTasksProjectFilter: null,
@@ -105,6 +106,15 @@
     return state.tasks.filter((t) => t.project_id === projectId && t.status !== 'avslutad').length;
   }
 
+  function matchesProjectSearch(projectNumber) {
+    if (!state.tlSearchQuery) return true;
+    return String(projectNumber ?? '').toLowerCase().includes(state.tlSearchQuery.toLowerCase());
+  }
+
+  function isProjectPast(project) {
+    return Boolean(project && project.end_date && project.end_date < toISO(new Date()));
+  }
+
   async function api(method, url, body) {
     const res = await fetch(url, {
       method,
@@ -180,6 +190,7 @@
   function assignmentsForResourceOnDate(resourceId, isoDate) {
     return state.assignments.filter(
       (a) => a.resource_id === resourceId && a.start_date <= isoDate && a.end_date >= isoDate
+        && matchesProjectSearch(a.project_number)
     );
   }
 
@@ -188,15 +199,16 @@
     const assignedIds = new Set(state.assignments.map((a) => a.project_id));
     const planeradIds = new Set(state.projects.filter((p) => p.status === 'planerad').map((p) => p.id));
     const projectIds = new Set([...assignedIds, ...planeradIds]);
-    const projects = state.projects.filter((p) => projectIds.has(p.id))
+    const projects = state.projects.filter((p) => projectIds.has(p.id) && matchesProjectSearch(p.project_number))
       .sort((a, b) => a.project_number.localeCompare(b.project_number));
     legend.innerHTML = projects.map((p) => {
       const count = p.status === 'planerad' ? myOpenTaskCountForProject(p.id) : 0;
       const badge = count > 0
         ? `<span class="badge planerad task-count-badge" data-project="${p.id}">${taskCountLabel(count)}</span>`
         : '';
+      const classes = isProjectPast(p) ? 'legend-item tl-past' : 'legend-item';
       return `
-        <div class="legend-item">
+        <div class="${classes}">
           <span class="legend-swatch" style="background:${colorForProject(p.id)}"></span>
           <span>${esc(p.project_number)} – ${esc(p.name)}</span>
           ${badge}
@@ -242,7 +254,9 @@
         const bars = matches.map((a) => {
           const showLabel = a.start_date === iso || iso === toISO(days[0]);
           const label = showLabel ? `${esc(a.project_number)} ${esc(a.project_name)}` : '';
-          return `<div class="tl-bar" style="background:${colorForProject(a.project_id)}" data-assignment="${a.id}" title="${esc(a.project_number)} – ${esc(a.project_name)}">${label}</div>`;
+          const project = state.projects.find((p) => p.id === a.project_id);
+          const barClasses = isProjectPast(project) ? 'tl-bar tl-past' : 'tl-bar';
+          return `<div class="${barClasses}" style="background:${colorForProject(a.project_id)}" data-assignment="${a.id}" title="${esc(a.project_number)} – ${esc(a.project_name)}">${label}</div>`;
         }).join('');
         return `<div class="${classes.join(' ')}" data-role="cell" data-resource="${resource.id}" data-date="${iso}">${bars}</div>`;
       }).join('');
@@ -266,7 +280,8 @@
     const rangeStartISO = toISO(days[0]);
     const rangeEndISO = toISO(days[days.length - 1]);
     const markers = state.projects
-      .filter((p) => p.start_date && p.start_date >= rangeStartISO && p.start_date <= rangeEndISO)
+      .filter((p) => p.start_date && p.start_date >= rangeStartISO && p.start_date <= rangeEndISO
+        && matchesProjectSearch(p.project_number))
       .map((p) => {
         const dayIndex = days.findIndex((d) => toISO(d) === p.start_date);
         const left = TL_LABEL_WIDTH + dayIndex * TL_DAY_WIDTH;
@@ -274,9 +289,10 @@
         const badge = count > 0
           ? `<span class="badge planerad task-count-badge" data-project="${p.id}">${taskCountLabel(count)}</span>`
           : '';
+        const pastClass = isProjectPast(p) ? ' tl-past' : '';
         return `
-          <div class="tl-start-marker" style="left:${left}px"></div>
-          <div class="tl-start-flag" style="left:${left}px">${esc(p.project_number)} start${badge}</div>
+          <div class="tl-start-marker${pastClass}" style="left:${left}px"></div>
+          <div class="tl-start-flag${pastClass}" style="left:${left}px">${esc(p.project_number)} start${badge}</div>
         `;
       }).join('');
 
@@ -322,6 +338,10 @@
     });
     document.getElementById('tl-filter').addEventListener('change', (e) => {
       state.tlFilterType = e.target.value;
+      renderTimeline();
+    });
+    document.getElementById('tl-search').addEventListener('input', (e) => {
+      state.tlSearchQuery = e.target.value.trim();
       renderTimeline();
     });
     document.getElementById('btn-add-assignment').addEventListener('click', () => openAssignmentModal({}));

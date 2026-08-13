@@ -212,6 +212,7 @@ button.danger:hover { background: #fee2e2; }
   white-space: nowrap;
   z-index: 4;
 }
+.tl-past { opacity: 0.5; }
 
 /* ---- Month calendar ---- */
 .month-grid {

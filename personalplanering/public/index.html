@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Personalplanering</title>
+<title>Byggproffs Personalplanering</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <header class="topbar">
-  <h1>Personalplanering</h1>
+  <h1>Byggproffs Personalplanering</h1>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="timeline">Tidslinje</button>
     <button class="tab-btn" data-tab="month">Månadskalender</button>
@@ -35,6 +35,9 @@
           <option value="anstalld">Personal</option>
           <option value="underentreprenor">Underentreprenör</option>
         </select>
+      </label>
+      <label class="filter-label">Sök projekt:
+        <input type="text" id="tl-search" placeholder="Projektnummer..." />
       </label>
       <button id="btn-add-assignment" class="primary">+ Boka personal på projekt</button>
     </div>
