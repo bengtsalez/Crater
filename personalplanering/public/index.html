@@ -66,11 +66,35 @@
       <div class="spacer"></div>
       <button id="btn-add-project" class="primary">+ Nytt projekt</button>
     </div>
-    <table class="data-table" id="projects-table">
+    <table class="data-table sortable" id="projects-table">
       <thead>
         <tr>
-          <th>Projektnr</th><th>Namn</th><th>Kund</th><th>Projektledare</th>
-          <th>Summa</th><th>Byggstart</th><th>Byggslut</th><th>Status</th><th></th>
+          <th data-sort="project_number">Projektnr</th>
+          <th data-sort="name">Namn</th>
+          <th data-sort="client">Kund</th>
+          <th data-sort="project_manager_username">Projektledare</th>
+          <th data-sort="sum">Summa</th>
+          <th data-sort="start_date">Byggstart</th>
+          <th data-sort="end_date">Byggslut</th>
+          <th data-sort="status">Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h2 class="group-title">Avslutade projekt</h2>
+    <table class="data-table sortable" id="projects-done-table">
+      <thead>
+        <tr>
+          <th data-sort="project_number">Projektnr</th>
+          <th data-sort="name">Namn</th>
+          <th data-sort="client">Kund</th>
+          <th data-sort="project_manager_username">Projektledare</th>
+          <th data-sort="sum">Summa</th>
+          <th data-sort="start_date">Byggstart</th>
+          <th data-sort="end_date">Byggslut</th>
+          <th></th>
         </tr>
       </thead>
       <tbody></tbody>

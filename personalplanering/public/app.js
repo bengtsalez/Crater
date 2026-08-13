@@ -33,6 +33,8 @@
     projectDetailId: null,
     projectDetailLineItems: [],
     projectDetailTasks: [],
+    projectsSortColumn: 'project_number',
+    projectsSortDirection: 'asc',
   };
 
   // ---------- Date helpers ----------
@@ -199,7 +201,9 @@
     const assignedIds = new Set(state.assignments.map((a) => a.project_id));
     const planeradIds = new Set(state.projects.filter((p) => p.status === 'planerad').map((p) => p.id));
     const projectIds = new Set([...assignedIds, ...planeradIds]);
-    const projects = state.projects.filter((p) => projectIds.has(p.id) && matchesProjectSearch(p.project_number))
+    const projects = state.projects
+      .filter((p) => projectIds.has(p.id) && matchesProjectSearch(p.project_number))
+      .filter((p) => !isProjectPast(p) || state.tlSearchQuery)
       .sort((a, b) => a.project_number.localeCompare(b.project_number));
     legend.innerHTML = projects.map((p) => {
       const count = p.status === 'planerad' ? myOpenTaskCountForProject(p.id) : 0;
@@ -441,9 +445,37 @@
 
   // ---------- Projects table ----------
 
-  function renderProjectsTable() {
-    const tbody = document.querySelector('#projects-table tbody');
-    tbody.innerHTML = state.projects.map((p) => `
+  function compareProjects(a, b, field) {
+    if (field === 'sum') {
+      return (a.sum ?? -Infinity) - (b.sum ?? -Infinity);
+    }
+    const av = String(a[field] ?? '').toLowerCase();
+    const bv = String(b[field] ?? '').toLowerCase();
+    return av.localeCompare(bv);
+  }
+
+  function sortProjects(list) {
+    const sorted = [...list].sort((a, b) => compareProjects(a, b, state.projectsSortColumn));
+    return state.projectsSortDirection === 'desc' ? sorted.reverse() : sorted;
+  }
+
+  function updateProjectsSortIndicators() {
+    document.querySelectorAll('#tab-projects th[data-sort]').forEach((th) => {
+      th.classList.remove('sort-asc', 'sort-desc');
+      if (th.dataset.sort === state.projectsSortColumn) {
+        th.classList.add(state.projectsSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+      }
+    });
+  }
+
+  function projectRow(p, isDone) {
+    const statusCell = isDone
+      ? ''
+      : `<td><span class="badge ${p.status}">${{ aktiv: 'Aktiv', planerad: 'Planerad', avslutad: 'Avslutad' }[p.status] || p.status}</span></td>`;
+    const actions = isDone
+      ? `<td><button type="button" class="ghost row-reactivate">Återaktivera</button> <button type="button" class="danger row-delete">Ta bort</button></td>`
+      : `<td><button type="button" class="danger row-delete">Ta bort</button></td>`;
+    return `
       <tr data-id="${p.id}">
         <td>${esc(p.project_number)}</td>
         <td>${esc(p.name)}</td>
@@ -452,32 +484,71 @@
         <td>${formatSum(p.sum)}</td>
         <td>${esc(p.start_date) || '–'}</td>
         <td>${esc(p.end_date) || '–'}</td>
-        <td><span class="badge ${p.status}">${{ aktiv: 'Aktiv', planerad: 'Planerad', avslutad: 'Avslutad' }[p.status] || p.status}</span></td>
-        <td><button type="button" class="danger row-delete">Ta bort</button></td>
+        ${statusCell}
+        ${actions}
       </tr>
-    `).join('');
+    `;
+  }
+
+  function renderProjectsTable() {
+    const activeProjects = sortProjects(state.projects.filter((p) => p.status !== 'avslutad'));
+    const doneProjects = sortProjects(state.projects.filter((p) => p.status === 'avslutad'));
+
+    document.querySelector('#projects-table tbody').innerHTML = activeProjects.length
+      ? activeProjects.map((p) => projectRow(p, false)).join('')
+      : '<tr><td colspan="9" class="empty-state">Inga projekt.</td></tr>';
+
+    document.querySelector('#projects-done-table tbody').innerHTML = doneProjects.length
+      ? doneProjects.map((p) => projectRow(p, true)).join('')
+      : '<tr><td colspan="8" class="empty-state">Inga avslutade projekt.</td></tr>';
+
+    updateProjectsSortIndicators();
   }
 
   function initProjectsTable() {
-    const tbody = document.querySelector('#projects-table tbody');
-    tbody.addEventListener('click', async (e) => {
-      const tr = e.target.closest('tr[data-id]');
-      if (!tr) return;
-      const id = Number(tr.dataset.id);
-      if (e.target.closest('.row-delete')) {
-        e.stopPropagation();
-        if (!confirm('Ta bort projektet?')) return;
-        try {
-          await api('DELETE', `/api/projects/${id}`);
-          await reloadAndRender();
-        } catch (err) {
-          alert(err.message);
+    ['#projects-table tbody', '#projects-done-table tbody'].forEach((selector) => {
+      document.querySelector(selector).addEventListener('click', async (e) => {
+        const tr = e.target.closest('tr[data-id]');
+        if (!tr) return;
+        const id = Number(tr.dataset.id);
+        if (e.target.closest('.row-delete')) {
+          e.stopPropagation();
+          if (!confirm('Ta bort projektet?')) return;
+          try {
+            await api('DELETE', `/api/projects/${id}`);
+            await reloadAndRender();
+          } catch (err) {
+            alert(err.message);
+          }
+          return;
         }
-        return;
-      }
-      openProjectDetail(id);
+        if (e.target.closest('.row-reactivate')) {
+          e.stopPropagation();
+          try {
+            await api('PUT', `/api/projects/${id}`, { status: 'aktiv' });
+            await reloadAndRender();
+          } catch (err) {
+            alert(err.message);
+          }
+          return;
+        }
+        openProjectDetail(id);
+      });
     });
     document.getElementById('btn-add-project').addEventListener('click', () => openProjectModal(null));
+
+    document.querySelectorAll('#tab-projects th[data-sort]').forEach((th) => {
+      th.addEventListener('click', () => {
+        const field = th.dataset.sort;
+        if (state.projectsSortColumn === field) {
+          state.projectsSortDirection = state.projectsSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.projectsSortColumn = field;
+          state.projectsSortDirection = 'asc';
+        }
+        renderProjectsTable();
+      });
+    });
   }
 
   // ---------- Resources tables ----------
@@ -532,6 +603,21 @@
     document.getElementById(id).classList.remove('open');
   }
 
+  function guardedHandler(button, fn) {
+    return async (e) => {
+      if (button.disabled) return;
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = originalText === 'Ta bort' ? 'Tar bort…' : 'Sparar…';
+      try {
+        await fn(e);
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    };
+  }
+
   function initModalDismiss() {
     document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
       backdrop.addEventListener('click', (e) => {
@@ -584,7 +670,8 @@
 
   function initProjectModal() {
     const form = document.getElementById('form-project');
-    form.addEventListener('submit', async (e) => {
+    const submitBtn = form.querySelector('button[type="submit"]');
+    form.addEventListener('submit', guardedHandler(submitBtn, async (e) => {
       e.preventDefault();
       const payload = {
         project_number: form.project_number.value.trim(),
@@ -609,8 +696,9 @@
       } catch (err) {
         alert(err.message);
       }
-    });
-    document.getElementById('project-delete-btn').addEventListener('click', async () => {
+    }));
+    const deleteBtn = document.getElementById('project-delete-btn');
+    deleteBtn.addEventListener('click', guardedHandler(deleteBtn, async () => {
       const id = form.id.value;
       if (!id || !confirm('Ta bort projektet?')) return;
       try {
@@ -620,7 +708,7 @@
       } catch (err) {
         alert(err.message);
       }
-    });
+    }));
   }
 
   // ---------- Resource modal ----------
@@ -647,7 +735,8 @@
 
   function initResourceModal() {
     const form = document.getElementById('form-resource');
-    form.addEventListener('submit', async (e) => {
+    const submitBtn = form.querySelector('button[type="submit"]');
+    form.addEventListener('submit', guardedHandler(submitBtn, async (e) => {
       e.preventDefault();
       const payload = {
         name: form.name.value.trim(),
@@ -667,8 +756,9 @@
       } catch (err) {
         alert(err.message);
       }
-    });
-    document.getElementById('resource-delete-btn').addEventListener('click', async () => {
+    }));
+    const deleteBtn = document.getElementById('resource-delete-btn');
+    deleteBtn.addEventListener('click', guardedHandler(deleteBtn, async () => {
       const id = form.id.value;
       if (!id || !confirm('Ta bort personen?')) return;
       try {
@@ -678,7 +768,7 @@
       } catch (err) {
         alert(err.message);
       }
-    });
+    }));
   }
 
   // ---------- Assignment modal ----------
@@ -719,7 +809,8 @@
 
   function initAssignmentModal() {
     const form = document.getElementById('form-assignment');
-    form.addEventListener('submit', async (e) => {
+    const submitBtn = form.querySelector('button[type="submit"]');
+    form.addEventListener('submit', guardedHandler(submitBtn, async (e) => {
       e.preventDefault();
       const payload = {
         resource_id: Number(form.resource_id.value),
@@ -740,8 +831,9 @@
       } catch (err) {
         alert(err.message);
       }
-    });
-    document.getElementById('assignment-delete-btn').addEventListener('click', async () => {
+    }));
+    const deleteBtn = document.getElementById('assignment-delete-btn');
+    deleteBtn.addEventListener('click', guardedHandler(deleteBtn, async () => {
       const id = form.id.value;
       if (!id || !confirm('Ta bort bokningen?')) return;
       try {
@@ -751,7 +843,7 @@
       } catch (err) {
         alert(err.message);
       }
-    });
+    }));
   }
 
   // ---------- Task modal ----------
@@ -784,7 +876,8 @@
 
   function initTaskModal() {
     const form = document.getElementById('form-task');
-    form.addEventListener('submit', async (e) => {
+    const submitBtn = form.querySelector('button[type="submit"]');
+    form.addEventListener('submit', guardedHandler(submitBtn, async (e) => {
       e.preventDefault();
       const payload = {
         title: form.title.value.trim(),
@@ -805,8 +898,9 @@
       } catch (err) {
         alert(err.message);
       }
-    });
-    document.getElementById('task-delete-btn').addEventListener('click', async () => {
+    }));
+    const deleteBtn = document.getElementById('task-delete-btn');
+    deleteBtn.addEventListener('click', guardedHandler(deleteBtn, async () => {
       const id = form.id.value;
       if (!id || !confirm('Ta bort uppgiften?')) return;
       try {
@@ -816,7 +910,7 @@
       } catch (err) {
         alert(err.message);
       }
-    });
+    }));
   }
 
   // ---------- Project detail ----------
@@ -1005,7 +1099,8 @@
 
   function initLineItemModal() {
     const form = document.getElementById('form-line-item');
-    form.addEventListener('submit', async (e) => {
+    const submitBtn = form.querySelector('button[type="submit"]');
+    form.addEventListener('submit', guardedHandler(submitBtn, async (e) => {
       e.preventDefault();
       const payload = {
         project_id: Number(form.project_id.value),
@@ -1027,8 +1122,9 @@
       } catch (err) {
         alert(err.message);
       }
-    });
-    document.getElementById('line-item-delete-btn').addEventListener('click', async () => {
+    }));
+    const deleteBtn = document.getElementById('line-item-delete-btn');
+    deleteBtn.addEventListener('click', guardedHandler(deleteBtn, async () => {
       const id = form.id.value;
       if (!id || !confirm('Ta bort raden?')) return;
       try {
@@ -1038,7 +1134,7 @@
       } catch (err) {
         alert(err.message);
       }
-    });
+    }));
   }
 
   // ---------- Min sida ----------
