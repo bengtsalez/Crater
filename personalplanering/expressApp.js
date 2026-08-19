@@ -101,9 +101,15 @@ app.get('/api/users', async (req, res, next) => {
 
 // ---------- Resources (anställda / underentreprenörer) ----------
 
+const CATEGORIES = ['mark', 'fasad', 'te'];
+
+function resolveResourceCategory(type, category) {
+  return type === 'anstalld' ? category : null;
+}
+
 app.get('/api/resources', async (req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM resources ORDER BY type, name');
+    const { rows } = await pool.query('SELECT * FROM resources ORDER BY type, category, name');
     res.json(rows);
   } catch (err) {
     next(err);
@@ -116,9 +122,13 @@ app.post('/api/resources', async (req, res, next) => {
     if (!name || !['anstalld', 'underentreprenor'].includes(type)) {
       return res.status(400).json({ error: 'Namn och giltig typ krävs.' });
     }
+    if (type === 'anstalld' && !CATEGORIES.includes(req.body.category)) {
+      return res.status(400).json({ error: 'Giltig kategori krävs för anställda.' });
+    }
+    const category = resolveResourceCategory(type, req.body.category);
     const { rows } = await pool.query(
-      'INSERT INTO resources (name, type, phone, active) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, type, phone || null, active === false ? 0 : 1]
+      'INSERT INTO resources (name, type, category, phone, active) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, type, category, phone || null, active === false ? 0 : 1]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -132,11 +142,18 @@ app.put('/api/resources/:id', async (req, res, next) => {
     const existingResult = await pool.query('SELECT * FROM resources WHERE id = $1', [req.params.id]);
     const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ error: 'Hittades inte.' });
+    const newType = type ?? existing.type;
+    const newCategory = req.body.category !== undefined ? req.body.category : existing.category;
+    if (newType === 'anstalld' && !CATEGORIES.includes(newCategory)) {
+      return res.status(400).json({ error: 'Giltig kategori krävs för anställda.' });
+    }
+    const category = resolveResourceCategory(newType, newCategory);
     const { rows } = await pool.query(
-      'UPDATE resources SET name=$1, type=$2, phone=$3, active=$4 WHERE id=$5 RETURNING *',
+      'UPDATE resources SET name=$1, type=$2, category=$3, phone=$4, active=$5 WHERE id=$6 RETURNING *',
       [
         name ?? existing.name,
-        type ?? existing.type,
+        newType,
+        category,
         phone ?? existing.phone,
         active === undefined ? existing.active : (active ? 1 : 0),
         req.params.id,
@@ -185,14 +202,17 @@ app.get('/api/projects/next-number', async (req, res, next) => {
 
 app.post('/api/projects', async (req, res, next) => {
   try {
-    const { name, client, project_manager_user_id, sum, start_date, end_date, status, notes } = req.body;
+    const { name, client, project_manager_user_id, sum, start_date, end_date, status, notes, category } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Namn krävs.' });
     }
+    if (category && !CATEGORIES.includes(category)) {
+      return res.status(400).json({ error: 'Ogiltig kategori.' });
+    }
     const project_number = await nextProjectNumber();
     const inserted = await pool.query(
-      `INSERT INTO projects (project_number, name, client, project_manager_user_id, sum, start_date, end_date, status, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      `INSERT INTO projects (project_number, name, client, project_manager_user_id, sum, start_date, end_date, status, notes, category)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [
         project_number,
         name,
@@ -203,6 +223,7 @@ app.post('/api/projects', async (req, res, next) => {
         end_date || null,
         status || 'aktiv',
         notes || null,
+        category || null,
       ]
     );
     const { rows } = await pool.query(`${PROJECT_SELECT} WHERE p.id = $1`, [inserted.rows[0].id]);
@@ -218,9 +239,12 @@ app.put('/api/projects/:id', async (req, res, next) => {
     const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ error: 'Hittades inte.' });
     const b = req.body;
+    if (b.category && !CATEGORIES.includes(b.category)) {
+      return res.status(400).json({ error: 'Ogiltig kategori.' });
+    }
     await pool.query(
-      `UPDATE projects SET project_number=$1, name=$2, client=$3, project_manager_user_id=$4, sum=$5, start_date=$6, end_date=$7, status=$8, notes=$9
-       WHERE id=$10`,
+      `UPDATE projects SET project_number=$1, name=$2, client=$3, project_manager_user_id=$4, sum=$5, start_date=$6, end_date=$7, status=$8, notes=$9, category=$10
+       WHERE id=$11`,
       [
         b.project_number ?? existing.project_number,
         b.name ?? existing.name,
@@ -231,6 +255,7 @@ app.put('/api/projects/:id', async (req, res, next) => {
         b.end_date ?? existing.end_date,
         b.status ?? existing.status,
         b.notes ?? existing.notes,
+        b.category !== undefined ? (b.category || null) : existing.category,
         req.params.id,
       ]
     );

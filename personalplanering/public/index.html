@@ -11,7 +11,7 @@
   <h1>Byggproffs Personalplanering</h1>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="timeline">Tidslinje</button>
-    <button class="tab-btn" data-tab="month">Månadskalender</button>
+    <button class="tab-btn" data-tab="month" hidden>Månadskalender</button>
     <button class="tab-btn" data-tab="projects">Projekt</button>
     <button class="tab-btn" data-tab="resources">Personal</button>
     <button class="tab-btn" data-tab="minsida">Min sida</button>
@@ -34,6 +34,9 @@
           <option value="">Alla</option>
           <option value="anstalld">Personal</option>
           <option value="underentreprenor">Underentreprenör</option>
+          <option value="mark">Mark</option>
+          <option value="fasad">Fasad</option>
+          <option value="te" title="Totalentreprenad">TE</option>
         </select>
       </label>
       <label class="filter-label">Sök projekt:
@@ -46,7 +49,7 @@
   </section>
 
   <!-- MÅNADSKALENDER -->
-  <section id="tab-month" class="tab-panel">
+  <section id="tab-month" class="tab-panel" hidden>
     <div class="toolbar">
       <button id="mo-prev">‹</button>
       <span id="mo-label" class="range-label"></span>
@@ -72,6 +75,7 @@
           <th data-sort="project_number">Projektnr</th>
           <th data-sort="name">Namn</th>
           <th data-sort="client">Kund</th>
+          <th data-sort="category">Kategori</th>
           <th data-sort="project_manager_username">Projektledare</th>
           <th data-sort="sum">Summa</th>
           <th data-sort="start_date">Byggstart</th>
@@ -90,6 +94,7 @@
           <th data-sort="project_number">Projektnr</th>
           <th data-sort="name">Namn</th>
           <th data-sort="client">Kund</th>
+          <th data-sort="category">Kategori</th>
           <th data-sort="project_manager_username">Projektledare</th>
           <th data-sort="sum">Summa</th>
           <th data-sort="start_date">Byggstart</th>
@@ -109,7 +114,7 @@
     </div>
     <h2 class="group-title">Anställda</h2>
     <table class="data-table" id="employees-table">
-      <thead><tr><th>Namn</th><th>Telefon</th><th>Aktiv</th><th></th></tr></thead>
+      <thead><tr><th>Namn</th><th>Kategori</th><th>Telefon</th><th>Aktiv</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
     <h2 class="group-title">Underentreprenörer</h2>
@@ -210,6 +215,14 @@
     <label>Projektnummer<input name="project_number" required readonly /></label>
     <label>Namn *<input name="name" required /></label>
     <label>Kund<input name="client" /></label>
+    <label>Kategori
+      <select name="category">
+        <option value="">Ingen vald</option>
+        <option value="mark">Mark</option>
+        <option value="fasad">Fasad</option>
+        <option value="te" title="Totalentreprenad">TE</option>
+      </select>
+    </label>
     <label>Projektledare
       <select name="project_manager_user_id">
         <option value="">Ingen vald</option>
@@ -247,6 +260,13 @@
       <select name="type">
         <option value="anstalld">Anställd</option>
         <option value="underentreprenor">Underentreprenör</option>
+      </select>
+    </label>
+    <label class="cat-field">Kategori *
+      <select name="category">
+        <option value="mark">Mark</option>
+        <option value="fasad">Fasad</option>
+        <option value="te" title="Totalentreprenad">TE</option>
       </select>
     </label>
     <label>Telefon<input name="phone" /></label>

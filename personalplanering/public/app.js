@@ -15,6 +15,9 @@
   const TL_DAY_WIDTH = 36;
   const TL_VISIBLE_DAYS = 31;
 
+  const RESOURCE_CATEGORIES = ['mark', 'fasad', 'te'];
+  const CATEGORY_LABELS = { mark: 'Mark', fasad: 'Fasad', te: 'TE' };
+
   // ---------- State ----------
 
   const state = {
@@ -230,9 +233,16 @@
 
     renderTimelineLegend();
 
-    const employees = state.tlFilterType && state.tlFilterType !== 'anstalld'
-      ? []
-      : state.resources.filter((r) => r.type === 'anstalld');
+    const employeeCategoryFilter = RESOURCE_CATEGORIES.includes(state.tlFilterType) ? state.tlFilterType : null;
+    const employeesVisible = !state.tlFilterType || state.tlFilterType === 'anstalld' || Boolean(employeeCategoryFilter);
+    const employeeCategories = employeeCategoryFilter ? [employeeCategoryFilter] : [...RESOURCE_CATEGORIES, null];
+    const employeeGroups = employeeCategories.map((category) => ({
+      category,
+      label: category ? CATEGORY_LABELS[category] : 'Ej kategoriserad',
+      resources: employeesVisible
+        ? state.resources.filter((r) => r.type === 'anstalld' && r.category === category)
+        : [],
+    }));
     const subcontractors = state.tlFilterType && state.tlFilterType !== 'underentreprenor'
       ? []
       : state.resources.filter((r) => r.type === 'underentreprenor');
@@ -267,15 +277,17 @@
       return `<div class="tl-row-label">${esc(resource.name)}</div>${cells}`;
     }
 
-    function groupHeader(label) {
-      return `<div class="tl-row-label group-header" style="grid-column: 1 / -1">${esc(label)}</div>`;
+    function groupHeader(label, categoryKey) {
+      const attr = categoryKey ? ` data-category-marker="${categoryKey}"` : '';
+      return `<div class="tl-row-label group-header" style="grid-column: 1 / -1"${attr}>${esc(label)}</div>`;
     }
 
     let gridHtml = `<div class="tl-row-label"></div>${dayHeaderCells()}`;
-    if (employees.length) {
-      gridHtml += groupHeader('Anställda');
-      gridHtml += employees.map(resourceRow).join('');
-    }
+    employeeGroups.forEach((group) => {
+      if (!group.resources.length) return;
+      gridHtml += groupHeader(group.label, group.category || 'none');
+      gridHtml += group.resources.map(resourceRow).join('');
+    });
     if (subcontractors.length) {
       gridHtml += groupHeader('Underentreprenörer');
       gridHtml += subcontractors.map(resourceRow).join('');
@@ -283,30 +295,44 @@
 
     const rangeStartISO = toISO(days[0]);
     const rangeEndISO = toISO(days[days.length - 1]);
-    const markers = state.projects
+    const flaggedProjects = state.projects
       .filter((p) => p.start_date && p.start_date >= rangeStartISO && p.start_date <= rangeEndISO
-        && matchesProjectSearch(p.project_number))
+        && matchesProjectSearch(p.project_number));
+
+    const wrap = document.getElementById('timeline-wrap');
+    wrap.innerHTML = `
+      <div class="timeline-inner">
+        <div class="timeline-grid" id="timeline-grid" style="grid-template-columns:${gridCols}">${gridHtml}</div>
+        <div class="timeline-overlay" id="timeline-overlay"></div>
+      </div>
+    `;
+
+    // Start flags land at their category's row level; uncategorized projects land at the very top.
+    const gridEl = document.getElementById('timeline-grid');
+    const dayHeaderEl = gridEl.querySelector('.tl-day-header');
+    const baselineTop = dayHeaderEl ? dayHeaderEl.offsetTop + dayHeaderEl.offsetHeight : 0;
+    function categoryMarkerTop(category) {
+      if (!category) return baselineTop;
+      const headerEl = gridEl.querySelector(`[data-category-marker="${category}"]`);
+      return headerEl ? headerEl.offsetTop : baselineTop;
+    }
+
+    const markers = flaggedProjects
       .map((p) => {
         const dayIndex = days.findIndex((d) => toISO(d) === p.start_date);
         const left = TL_LABEL_WIDTH + dayIndex * TL_DAY_WIDTH;
+        const top = categoryMarkerTop(p.category);
         const count = p.status === 'planerad' ? myOpenTaskCountForProject(p.id) : 0;
         const badge = count > 0
           ? `<span class="badge planerad task-count-badge" data-project="${p.id}">${taskCountLabel(count)}</span>`
           : '';
         const pastClass = isProjectPast(p) ? ' tl-past' : '';
         return `
-          <div class="tl-start-marker${pastClass}" style="left:${left}px"></div>
-          <div class="tl-start-flag${pastClass}" style="left:${left}px">${esc(p.project_number)} start${badge}</div>
+          <div class="tl-start-marker${pastClass}" style="left:${left}px; top:${top}px"></div>
+          <div class="tl-start-flag${pastClass}" style="left:${left}px; top:${top}px">${esc(p.project_number)} start${badge}</div>
         `;
       }).join('');
-
-    const wrap = document.getElementById('timeline-wrap');
-    wrap.innerHTML = `
-      <div class="timeline-inner">
-        <div class="timeline-grid" id="timeline-grid" style="grid-template-columns:${gridCols}">${gridHtml}</div>
-        <div class="timeline-overlay">${markers}</div>
-      </div>
-    `;
+    document.getElementById('timeline-overlay').innerHTML = markers;
 
     document.getElementById('timeline-grid').addEventListener('click', (e) => {
       const barEl = e.target.closest('[data-assignment]');
@@ -480,6 +506,7 @@
         <td>${esc(p.project_number)}</td>
         <td>${esc(p.name)}</td>
         <td>${esc(p.client) || '–'}</td>
+        <td>${CATEGORY_LABELS[p.category] || '–'}</td>
         <td>${esc(p.project_manager_username) || '–'}</td>
         <td>${formatSum(p.sum)}</td>
         <td>${esc(p.start_date) || '–'}</td>
@@ -496,11 +523,11 @@
 
     document.querySelector('#projects-table tbody').innerHTML = activeProjects.length
       ? activeProjects.map((p) => projectRow(p, false)).join('')
-      : '<tr><td colspan="9" class="empty-state">Inga projekt.</td></tr>';
+      : '<tr><td colspan="10" class="empty-state">Inga projekt.</td></tr>';
 
     document.querySelector('#projects-done-table tbody').innerHTML = doneProjects.length
       ? doneProjects.map((p) => projectRow(p, true)).join('')
-      : '<tr><td colspan="8" class="empty-state">Inga avslutade projekt.</td></tr>';
+      : '<tr><td colspan="9" class="empty-state">Inga avslutade projekt.</td></tr>';
 
     updateProjectsSortIndicators();
   }
@@ -553,11 +580,12 @@
 
   // ---------- Resources tables ----------
 
-  function renderResourceRows(tbodySelector, resources) {
+  function renderResourceRows(tbodySelector, resources, { showCategory } = {}) {
     const tbody = document.querySelector(tbodySelector);
     tbody.innerHTML = resources.map((r) => `
       <tr data-id="${r.id}">
         <td>${esc(r.name)}</td>
+        ${showCategory ? `<td>${CATEGORY_LABELS[r.category] || '–'}</td>` : ''}
         <td>${esc(r.phone) || '–'}</td>
         <td>${r.active ? 'Ja' : 'Nej'}</td>
         <td><button type="button" class="danger row-delete">Ta bort</button></td>
@@ -566,7 +594,7 @@
   }
 
   function renderResourcesTables() {
-    renderResourceRows('#employees-table tbody', state.resources.filter((r) => r.type === 'anstalld'));
+    renderResourceRows('#employees-table tbody', state.resources.filter((r) => r.type === 'anstalld'), { showCategory: true });
     renderResourceRows('#subcontractors-table tbody', state.resources.filter((r) => r.type === 'underentreprenor'));
   }
 
@@ -646,6 +674,7 @@
       form.project_number.readOnly = false;
       form.name.value = project.name;
       form.client.value = project.client || '';
+      form.category.value = project.category || '';
       form.project_manager_user_id.value = project.project_manager_user_id || '';
       form.sum.value = project.sum ?? '';
       form.start_date.value = project.start_date || '';
@@ -677,6 +706,7 @@
         project_number: form.project_number.value.trim(),
         name: form.name.value.trim(),
         client: form.client.value.trim(),
+        category: form.category.value || null,
         project_manager_user_id: form.project_manager_user_id.value ? Number(form.project_manager_user_id.value) : null,
         sum: form.sum.value === '' ? '' : Number(form.sum.value),
         start_date: form.start_date.value,
@@ -713,6 +743,12 @@
 
   // ---------- Resource modal ----------
 
+  function toggleResourceCategoryField(form) {
+    const isEmployee = form.type.value === 'anstalld';
+    form.querySelector('.cat-field').hidden = !isEmployee;
+    form.category.required = isEmployee;
+  }
+
   function openResourceModal(resource) {
     const form = document.getElementById('form-resource');
     form.reset();
@@ -722,6 +758,7 @@
       form.id.value = resource.id;
       form.name.value = resource.name;
       form.type.value = resource.type;
+      form.category.value = resource.category || 'mark';
       form.phone.value = resource.phone || '';
       form.active.checked = Boolean(resource.active);
       deleteBtn.hidden = false;
@@ -730,17 +767,20 @@
       form.active.checked = true;
       deleteBtn.hidden = true;
     }
+    toggleResourceCategoryField(form);
     openModal('modal-resource');
   }
 
   function initResourceModal() {
     const form = document.getElementById('form-resource');
     const submitBtn = form.querySelector('button[type="submit"]');
+    form.type.addEventListener('change', () => toggleResourceCategoryField(form));
     form.addEventListener('submit', guardedHandler(submitBtn, async (e) => {
       e.preventDefault();
       const payload = {
         name: form.name.value.trim(),
         type: form.type.value,
+        category: form.type.value === 'anstalld' ? form.category.value : null,
         phone: form.phone.value.trim(),
         active: form.active.checked,
       };

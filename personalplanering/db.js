@@ -53,6 +53,10 @@ const ready = pool
 
     ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_manager_user_id INTEGER REFERENCES users(id);
 
+    ALTER TABLE resources ADD COLUMN IF NOT EXISTS category TEXT;
+
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS category TEXT;
+
     CREATE TABLE IF NOT EXISTS tasks (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
