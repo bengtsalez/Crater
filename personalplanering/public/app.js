@@ -30,6 +30,7 @@
     tlStart: mondayOf(new Date()),
     tlFilterType: '',
     tlSearchQuery: '',
+    tlShowHolidays: false,
     monthCursor: startOfMonth(new Date()),
     monthFilterResourceId: '',
     myTasksProjectFilter: null,
@@ -82,6 +83,70 @@
   function isWeekend(date) {
     const d = date.getDay();
     return d === 0 || d === 6;
+  }
+
+  // Anonymous Gregorian algorithm.
+  function easterSunday(year) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
+  }
+
+  function midsummerDay(year) {
+    for (let d = 20; d <= 26; d++) {
+      const date = new Date(year, 5, d);
+      if (date.getDay() === 6) return date;
+    }
+    return new Date(year, 5, 20);
+  }
+
+  function allSaintsDay(year) {
+    for (let d = 31; d <= 37; d++) {
+      const date = new Date(year, 9, d);
+      if (date.getDay() === 6) return date;
+    }
+    return new Date(year, 9, 31);
+  }
+
+  const holidayCache = new Map();
+
+  function swedishHolidaysForYear(year) {
+    if (holidayCache.has(year)) return holidayCache.get(year);
+    const easter = easterSunday(year);
+    const dates = [
+      new Date(year, 0, 1),   // Nyårsdagen
+      new Date(year, 0, 6),   // Trettondedag jul
+      addDays(easter, -2),    // Långfredagen
+      easter,                 // Påskdagen
+      addDays(easter, 1),     // Annandag påsk
+      new Date(year, 4, 1),   // Första maj
+      addDays(easter, 39),    // Kristi himmelsfärdsdag
+      addDays(easter, 49),    // Pingstdagen
+      new Date(year, 5, 6),   // Sveriges nationaldag
+      midsummerDay(year),     // Midsommardagen
+      allSaintsDay(year),     // Alla helgons dag
+      new Date(year, 11, 25), // Juldagen
+      new Date(year, 11, 26), // Annandag jul
+    ];
+    const set = new Set(dates.map(toISO));
+    holidayCache.set(year, set);
+    return set;
+  }
+
+  function isHoliday(date) {
+    return swedishHolidaysForYear(date.getFullYear()).has(toISO(date));
   }
 
   // ---------- Small utils ----------
@@ -192,13 +257,6 @@
 
   // ---------- Timeline ----------
 
-  function assignmentsForResourceOnDate(resourceId, isoDate) {
-    return state.assignments.filter(
-      (a) => a.resource_id === resourceId && a.start_date <= isoDate && a.end_date >= isoDate
-        && matchesProjectSearch(a.project_number)
-    );
-  }
-
   function renderTimelineLegend() {
     const legend = document.getElementById('timeline-legend');
     const assignedIds = new Set(state.assignments.map((a) => a.project_id));
@@ -225,11 +283,13 @@
   }
 
   function renderTimeline() {
-    const days = Array.from({ length: TL_VISIBLE_DAYS }, (_, i) => addDays(state.tlStart, i));
+    const calendarDays = Array.from({ length: TL_VISIBLE_DAYS }, (_, i) => addDays(state.tlStart, i));
+    const days = state.tlShowHolidays ? calendarDays : calendarDays.filter((d) => !isHoliday(d));
     const today = new Date();
+    const rangeStartISO = toISO(calendarDays[0]);
+    const rangeEndISO = toISO(calendarDays[calendarDays.length - 1]);
 
-    document.getElementById('tl-range-label').textContent =
-      `${toISO(days[0])} – ${toISO(days[days.length - 1])}`;
+    document.getElementById('tl-range-label').textContent = `${rangeStartISO} – ${rangeEndISO}`;
 
     renderTimelineLegend();
 
@@ -253,6 +313,7 @@
       return days.map((d) => {
         const classes = ['tl-day-header'];
         if (isWeekend(d)) classes.push('weekend');
+        if (isHoliday(d)) classes.push('holiday');
         if (isSameDay(d, today)) classes.push('today');
         return `<div class="${classes.join(' ')}">${d.getDate()}<span class="dow">${DOW_LABELS[(d.getDay() + 6) % 7]}</span></div>`;
       }).join('');
@@ -263,16 +324,9 @@
         const iso = toISO(d);
         const classes = ['tl-cell'];
         if (isWeekend(d)) classes.push('weekend');
+        if (isHoliday(d)) classes.push('holiday');
         if (isSameDay(d, today)) classes.push('today');
-        const matches = assignmentsForResourceOnDate(resource.id, iso);
-        const bars = matches.map((a) => {
-          const showLabel = a.start_date === iso || iso === toISO(days[0]);
-          const label = showLabel ? `${esc(a.project_number)} ${esc(a.project_name)}` : '';
-          const project = state.projects.find((p) => p.id === a.project_id);
-          const barClasses = isProjectPast(project) ? 'tl-bar tl-past' : 'tl-bar';
-          return `<div class="${barClasses}" style="background:${colorForProject(a.project_id)}" data-assignment="${a.id}" title="${esc(a.project_number)} – ${esc(a.project_name)}">${label}</div>`;
-        }).join('');
-        return `<div class="${classes.join(' ')}" data-role="cell" data-resource="${resource.id}" data-date="${iso}">${bars}</div>`;
+        return `<div class="${classes.join(' ')}" data-role="cell" data-resource="${resource.id}" data-date="${iso}"></div>`;
       }).join('');
       return `<div class="tl-row-label">${esc(resource.name)}</div>${cells}`;
     }
@@ -293,8 +347,6 @@
       gridHtml += subcontractors.map(resourceRow).join('');
     }
 
-    const rangeStartISO = toISO(days[0]);
-    const rangeEndISO = toISO(days[days.length - 1]);
     const flaggedProjects = state.projects
       .filter((p) => p.start_date && p.start_date >= rangeStartISO && p.start_date <= rangeEndISO
         && matchesProjectSearch(p.project_number));
@@ -320,6 +372,7 @@
     const markers = flaggedProjects
       .map((p) => {
         const dayIndex = days.findIndex((d) => toISO(d) === p.start_date);
+        if (dayIndex === -1) return ''; // start date falls on a hidden day (e.g. a holiday)
         const left = TL_LABEL_WIDTH + dayIndex * TL_DAY_WIDTH;
         const top = categoryMarkerTop(p.category);
         const count = p.status === 'planerad' ? myOpenTaskCountForProject(p.id) : 0;
@@ -332,17 +385,46 @@
           <div class="tl-start-flag${pastClass}" style="left:${left}px; top:${top}px">${esc(p.project_number)} start${badge}</div>
         `;
       }).join('');
-    document.getElementById('timeline-overlay').innerHTML = markers;
+
+    // Assignment bars: one rectangle spanning start-to-end per assignment, not one box per day.
+    const allVisibleResources = [...employeeGroups.flatMap((g) => g.resources), ...subcontractors];
+    const bars = allVisibleResources
+      .map((resource) => {
+        const firstCell = gridEl.querySelector(`[data-role="cell"][data-resource="${resource.id}"]`);
+        if (!firstCell) return '';
+        const rowTop = firstCell.offsetTop;
+        const rowHeight = firstCell.offsetHeight;
+        const assignments = state.assignments.filter(
+          (a) => a.resource_id === resource.id && a.start_date <= rangeEndISO && a.end_date >= rangeStartISO
+            && matchesProjectSearch(a.project_number)
+        );
+        return assignments.map((a) => {
+          const startIdx = days.findIndex((d) => toISO(d) >= a.start_date);
+          let endIdx = -1;
+          for (let i = days.length - 1; i >= 0; i--) {
+            if (toISO(days[i]) <= a.end_date) { endIdx = i; break; }
+          }
+          if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return '';
+          const left = TL_LABEL_WIDTH + startIdx * TL_DAY_WIDTH + 1;
+          const width = (endIdx - startIdx + 1) * TL_DAY_WIDTH - 2;
+          const project = state.projects.find((p) => p.id === a.project_id);
+          const barClasses = isProjectPast(project) ? 'tl-bar tl-past' : 'tl-bar';
+          return `<div class="${barClasses}" style="left:${left}px; top:${rowTop + 3}px; width:${width}px; height:${rowHeight - 6}px; background:${colorForProject(a.project_id)}" data-assignment="${a.id}" title="${esc(a.project_number)} – ${esc(a.project_name)}">${esc(a.project_number)} ${esc(a.project_name)}</div>`;
+        }).join('');
+      }).join('');
+
+    document.getElementById('timeline-overlay').innerHTML = markers + bars;
 
     document.getElementById('timeline-grid').addEventListener('click', (e) => {
-      const barEl = e.target.closest('[data-assignment]');
-      if (barEl) {
-        openAssignmentModal({ id: Number(barEl.dataset.assignment) });
-        return;
-      }
       const cellEl = e.target.closest('[data-role="cell"]');
       if (cellEl) {
         openAssignmentModal({ resourceId: Number(cellEl.dataset.resource), date: cellEl.dataset.date });
+      }
+    });
+    document.getElementById('timeline-overlay').addEventListener('click', (e) => {
+      const barEl = e.target.closest('[data-assignment]');
+      if (barEl) {
+        openAssignmentModal({ id: Number(barEl.dataset.assignment) });
       }
     });
   }
@@ -372,6 +454,11 @@
     });
     document.getElementById('tl-search').addEventListener('input', (e) => {
       state.tlSearchQuery = e.target.value.trim();
+      renderTimeline();
+    });
+    document.getElementById('tl-show-holidays').checked = state.tlShowHolidays;
+    document.getElementById('tl-show-holidays').addEventListener('change', (e) => {
+      state.tlShowHolidays = e.target.checked;
       renderTimeline();
     });
     document.getElementById('btn-add-assignment').addEventListener('click', () => openAssignmentModal({}));
