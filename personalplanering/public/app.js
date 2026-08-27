@@ -9,7 +9,7 @@
     'Juli', 'Augusti', 'September', 'Oktober', 'November', 'December',
   ];
   // Fixed categorical order; colors repeat past 8 simultaneous projects.
-  const PROJECT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+  const PROJECT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948', '#a7a932', '#88438e', '#790909', '#341f94'];
 
   const TL_LABEL_WIDTH = 180;
   const TL_DAY_WIDTH = 36;
