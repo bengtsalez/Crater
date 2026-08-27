@@ -39,6 +39,7 @@
     projectDetailTasks: [],
     projectsSortColumn: 'project_number',
     projectsSortDirection: 'asc',
+    projectsSearchQuery: '',
   };
 
   // ---------- Date helpers ----------
@@ -74,6 +75,17 @@
     const day = d.getDay();
     const diff = day === 0 ? -6 : 1 - day;
     return addDays(d, diff);
+  }
+
+  // ISO-8601 veckonummer (vecka börjar måndag, vecka 1 innehåller första torsdagen).
+  function isoWeek(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - dayNum + 3);
+    const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    const firstThursdayDayNum = (firstThursday.getUTCDay() + 6) % 7;
+    firstThursday.setUTCDate(firstThursday.getUTCDate() - firstThursdayDayNum + 3);
+    return 1 + Math.round((d - firstThursday) / (7 * 86400000));
   }
 
   function isSameDay(a, b) {
@@ -125,28 +137,32 @@
   function swedishHolidaysForYear(year) {
     if (holidayCache.has(year)) return holidayCache.get(year);
     const easter = easterSunday(year);
-    const dates = [
-      new Date(year, 0, 1),   // Nyårsdagen
-      new Date(year, 0, 6),   // Trettondedag jul
-      addDays(easter, -2),    // Långfredagen
-      easter,                 // Påskdagen
-      addDays(easter, 1),     // Annandag påsk
-      new Date(year, 4, 1),   // Första maj
-      addDays(easter, 39),    // Kristi himmelsfärdsdag
-      addDays(easter, 49),    // Pingstdagen
-      new Date(year, 5, 6),   // Sveriges nationaldag
-      midsummerDay(year),     // Midsommardagen
-      allSaintsDay(year),     // Alla helgons dag
-      new Date(year, 11, 25), // Juldagen
-      new Date(year, 11, 26), // Annandag jul
+    const entries = [
+      [new Date(year, 0, 1), 'Nyårsdagen'],
+      [new Date(year, 0, 6), 'Trettondedag jul'],
+      [addDays(easter, -2), 'Långfredagen'],
+      [easter, 'Påskdagen'],
+      [addDays(easter, 1), 'Annandag påsk'],
+      [new Date(year, 4, 1), 'Första maj'],
+      [addDays(easter, 39), 'Kristi himmelsfärdsdag'],
+      [addDays(easter, 49), 'Pingstdagen'],
+      [new Date(year, 5, 6), 'Sveriges nationaldag'],
+      [midsummerDay(year), 'Midsommardagen'],
+      [allSaintsDay(year), 'Alla helgons dag'],
+      [new Date(year, 11, 25), 'Juldagen'],
+      [new Date(year, 11, 26), 'Annandag jul'],
     ];
-    const set = new Set(dates.map(toISO));
-    holidayCache.set(year, set);
-    return set;
+    const map = new Map(entries.map(([d, name]) => [toISO(d), name]));
+    holidayCache.set(year, map);
+    return map;
   }
 
   function isHoliday(date) {
     return swedishHolidaysForYear(date.getFullYear()).has(toISO(date));
+  }
+
+  function holidayName(date) {
+    return swedishHolidaysForYear(date.getFullYear()).get(toISO(date)) || '';
   }
 
   // ---------- Small utils ----------
@@ -169,6 +185,46 @@
 
   function taskCountLabel(n) {
     return `${n} uppgift${n === 1 ? '' : 'er'}`;
+  }
+
+  // Lättviktig, icke-blockerande bekräftelse. alert() används fortfarande för fel.
+  function toast(message) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      document.body.appendChild(container);
+    }
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = message;
+    container.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 250);
+    }, 3000);
+  }
+
+  // Projekt valbara i dropdowns: aktiva/planerade, plus ev. redan valt projekt
+  // (så en redigerad bokning vars projekt hunnit bli avslutat visar rätt värde).
+  function activeProjectsForSelect(currentId) {
+    return state.projects.filter((p) => p.status !== 'avslutad' || p.id === currentId);
+  }
+
+  // Tidigaste bokade startdatum för ett projekt, annars null.
+  function plannedStartFor(projectId) {
+    return state.assignments
+      .filter((a) => a.project_id === projectId)
+      .map((a) => a.start_date)
+      .sort()[0] || null;
+  }
+
+  // Vilket startdatum som gäller att visa: inplanerat om projektet har bokningar, annars preliminärt.
+  function effectiveStart(project) {
+    const planned = plannedStartFor(project.id);
+    if (planned) return { date: planned, planned: true, preliminary: project.start_date || null };
+    return { date: project.start_date || null, planned: false, preliminary: project.start_date || null };
   }
 
   function myOpenTaskCountForProject(projectId) {
@@ -263,7 +319,7 @@
     const planeradIds = new Set(state.projects.filter((p) => p.status === 'planerad').map((p) => p.id));
     const projectIds = new Set([...assignedIds, ...planeradIds]);
     const projects = state.projects
-      .filter((p) => projectIds.has(p.id) && matchesProjectSearch(p.project_number))
+      .filter((p) => projectIds.has(p.id) && p.status !== 'avslutad' && matchesProjectSearch(p.project_number))
       .filter((p) => !isProjectPast(p) || state.tlSearchQuery)
       .sort((a, b) => a.project_number.localeCompare(b.project_number));
     legend.innerHTML = projects.map((p) => {
@@ -309,13 +365,27 @@
 
     const gridCols = `${TL_LABEL_WIDTH}px repeat(${days.length}, ${TL_DAY_WIDTH}px)`;
 
+    function weekHeaderCells() {
+      const cells = [];
+      let i = 0;
+      while (i < days.length) {
+        const wk = isoWeek(days[i]);
+        let span = 1;
+        while (i + span < days.length && isoWeek(days[i + span]) === wk) span++;
+        cells.push(`<div class="tl-week-cell" style="grid-column: span ${span}">v.${wk}</div>`);
+        i += span;
+      }
+      return cells.join('');
+    }
+
     function dayHeaderCells() {
       return days.map((d) => {
         const classes = ['tl-day-header'];
         if (isWeekend(d)) classes.push('weekend');
         if (isHoliday(d)) classes.push('holiday');
         if (isSameDay(d, today)) classes.push('today');
-        return `<div class="${classes.join(' ')}">${d.getDate()}<span class="dow">${DOW_LABELS[(d.getDay() + 6) % 7]}</span></div>`;
+        const title = isHoliday(d) ? ` title="${esc(holidayName(d))}"` : '';
+        return `<div class="${classes.join(' ')}"${title}>${d.getDate()}<span class="dow">${DOW_LABELS[(d.getDay() + 6) % 7]}</span></div>`;
       }).join('');
     }
 
@@ -326,7 +396,8 @@
         if (isWeekend(d)) classes.push('weekend');
         if (isHoliday(d)) classes.push('holiday');
         if (isSameDay(d, today)) classes.push('today');
-        return `<div class="${classes.join(' ')}" data-role="cell" data-resource="${resource.id}" data-date="${iso}"></div>`;
+        const title = isHoliday(d) ? ` title="${esc(holidayName(d))}"` : '';
+        return `<div class="${classes.join(' ')}"${title} data-role="cell" data-resource="${resource.id}" data-date="${iso}"></div>`;
       }).join('');
       return `<div class="tl-row-label">${esc(resource.name)}</div>${cells}`;
     }
@@ -336,7 +407,8 @@
       return `<div class="tl-row-label group-header" style="grid-column: 1 / -1"${attr}>${esc(label)}</div>`;
     }
 
-    let gridHtml = `<div class="tl-row-label"></div>${dayHeaderCells()}`;
+    let gridHtml = `<div class="tl-week-label"></div>${weekHeaderCells()}`;
+    gridHtml += `<div class="tl-row-label"></div>${dayHeaderCells()}`;
     employeeGroups.forEach((group) => {
       if (!group.resources.length) return;
       gridHtml += groupHeader(group.label, group.category || 'none');
@@ -348,7 +420,7 @@
     }
 
     const flaggedProjects = state.projects
-      .filter((p) => p.start_date && p.start_date >= rangeStartISO && p.start_date <= rangeEndISO
+      .filter((p) => p.status !== 'avslutad' && p.start_date && p.start_date >= rangeStartISO && p.start_date <= rangeEndISO
         && matchesProjectSearch(p.project_number));
 
     const wrap = document.getElementById('timeline-wrap');
@@ -421,11 +493,76 @@
         openAssignmentModal({ resourceId: Number(cellEl.dataset.resource), date: cellEl.dataset.date });
       }
     });
-    document.getElementById('timeline-overlay').addEventListener('click', (e) => {
+    const overlayEl = document.getElementById('timeline-overlay');
+    let dragSuppressClick = false;
+
+    overlayEl.addEventListener('click', (e) => {
+      if (dragSuppressClick) { dragSuppressClick = false; return; }
       const barEl = e.target.closest('[data-assignment]');
       if (barEl) {
         openAssignmentModal({ id: Number(barEl.dataset.assignment) });
       }
+    });
+
+    // Drag & drop: flytta en bokning horisontellt → skifta start- OCH slutdatum lika
+    // många kalenderdagar (längden bevaras alltid).
+    overlayEl.querySelectorAll('.tl-bar[data-assignment]').forEach((barEl) => {
+      barEl.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        const assignmentId = Number(barEl.dataset.assignment);
+        const assignment = state.assignments.find((a) => a.id === assignmentId);
+        if (!assignment) return;
+        const startX = e.clientX;
+        let moved = false;
+        try { barEl.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+
+        const onMove = (ev) => {
+          const dx = ev.clientX - startX;
+          if (!moved && Math.abs(dx) > 4) moved = true;
+          if (moved) barEl.style.transform = `translateX(${dx}px)`;
+        };
+        const onUp = async (ev) => {
+          barEl.removeEventListener('pointermove', onMove);
+          barEl.removeEventListener('pointerup', onUp);
+          barEl.removeEventListener('pointercancel', onUp);
+          barEl.style.transform = '';
+          if (!moved) return;
+          dragSuppressClick = true;
+
+          const deltaCols = Math.round((ev.clientX - startX) / TL_DAY_WIDTH);
+          if (deltaCols === 0) return;
+
+          const foundIdx = days.findIndex((d) => toISO(d) >= assignment.start_date);
+          const baseIdx = foundIdx === -1 ? 0 : foundIdx;
+          const targetIdx = Math.min(Math.max(baseIdx + deltaCols, 0), days.length - 1);
+          let newStart = days[targetIdx];
+          // days är redan helgdagsfria som standard; om helgdagar visas, hoppa förbi dem.
+          let guard = 0;
+          while (isHoliday(newStart) && guard < 14) {
+            newStart = addDays(newStart, deltaCols > 0 ? 1 : -1);
+            guard++;
+          }
+          const durationDays = Math.round(
+            (fromISO(assignment.end_date) - fromISO(assignment.start_date)) / 86400000
+          );
+          const newEnd = addDays(newStart, durationDays);
+
+          try {
+            await api('PUT', `/api/assignments/${assignmentId}`, {
+              start_date: toISO(newStart),
+              end_date: toISO(newEnd),
+            });
+            await reloadAndRender();
+            toast('Bokning flyttad');
+          } catch (err) {
+            alert(err.message);
+            await reloadAndRender();
+          }
+        };
+        barEl.addEventListener('pointermove', onMove);
+        barEl.addEventListener('pointerup', onUp);
+        barEl.addEventListener('pointercancel', onUp);
+      });
     });
   }
 
@@ -562,6 +699,9 @@
     if (field === 'sum') {
       return (a.sum ?? -Infinity) - (b.sum ?? -Infinity);
     }
+    if (field === 'start_date') {
+      return String(effectiveStart(a).date ?? '').localeCompare(String(effectiveStart(b).date ?? ''));
+    }
     const av = String(a[field] ?? '').toLowerCase();
     const bv = String(b[field] ?? '').toLowerCase();
     return av.localeCompare(bv);
@@ -581,6 +721,17 @@
     });
   }
 
+  function startCellHtml(p) {
+    const es = effectiveStart(p);
+    if (!es.date) return '<td>–</td>';
+    const showPrel = es.preliminary && es.preliminary !== es.date;
+    const title = es.planned
+      ? 'Inplanerat startdatum (tidigaste bokningen)' + (showPrel ? ` · preliminär: ${es.preliminary}` : '')
+      : 'Preliminärt startdatum – projektet är inte inplanerat ännu';
+    const mark = es.planned ? '' : ' <span class="hint">(prel.)</span>';
+    return `<td title="${esc(title)}">${esc(es.date)}${mark}</td>`;
+  }
+
   function projectRow(p, isDone) {
     const statusCell = isDone
       ? ''
@@ -596,7 +747,7 @@
         <td>${CATEGORY_LABELS[p.category] || '–'}</td>
         <td>${esc(p.project_manager_username) || '–'}</td>
         <td>${formatSum(p.sum)}</td>
-        <td>${esc(p.start_date) || '–'}</td>
+        ${startCellHtml(p)}
         <td>${esc(p.end_date) || '–'}</td>
         ${statusCell}
         ${actions}
@@ -604,9 +755,17 @@
     `;
   }
 
+  function matchesProjectQuery(p) {
+    const q = state.projectsSearchQuery;
+    if (!q) return true;
+    return [p.name, p.client, p.project_number]
+      .some((v) => String(v ?? '').toLowerCase().includes(q));
+  }
+
   function renderProjectsTable() {
-    const activeProjects = sortProjects(state.projects.filter((p) => p.status !== 'avslutad'));
-    const doneProjects = sortProjects(state.projects.filter((p) => p.status === 'avslutad'));
+    const visible = state.projects.filter(matchesProjectQuery);
+    const activeProjects = sortProjects(visible.filter((p) => p.status !== 'avslutad'));
+    const doneProjects = sortProjects(visible.filter((p) => p.status === 'avslutad'));
 
     document.querySelector('#projects-table tbody').innerHTML = activeProjects.length
       ? activeProjects.map((p) => projectRow(p, false)).join('')
@@ -650,6 +809,11 @@
       });
     });
     document.getElementById('btn-add-project').addEventListener('click', () => openProjectModal(null));
+
+    document.getElementById('projects-search').addEventListener('input', (e) => {
+      state.projectsSearchQuery = e.target.value.trim().toLowerCase();
+      renderProjectsTable();
+    });
 
     document.querySelectorAll('#tab-projects th[data-sort]').forEach((th) => {
       th.addEventListener('click', () => {
@@ -746,7 +910,12 @@
 
   // ---------- Project modal ----------
 
-  async function openProjectModal(project) {
+  // Sätts när projektmodalen öppnas från ett annat flöde (t.ex. tidslinjen) som vill
+  // få tillbaka det skapade projektet. Nollställs vid varje öppning.
+  let projectModalOnCreated = null;
+
+  async function openProjectModal(project, opts = {}) {
+    projectModalOnCreated = opts.onCreated || null;
     const form = document.getElementById('form-project');
     form.reset();
     document.getElementById('project-modal-title').textContent = project ? 'Redigera projekt' : 'Nytt projekt';
@@ -803,13 +972,19 @@
       };
       const id = form.id.value;
       try {
+        let created = null;
         if (id) {
           await api('PUT', `/api/projects/${id}`, payload);
         } else {
-          await api('POST', '/api/projects', payload);
+          created = await api('POST', '/api/projects', payload);
         }
         closeModal('modal-project');
         await reloadAndRender();
+        if (created && projectModalOnCreated) {
+          const cb = projectModalOnCreated;
+          projectModalOnCreated = null;
+          cb(created);
+        }
       } catch (err) {
         alert(err.message);
       }
@@ -904,13 +1079,15 @@
     const form = document.getElementById('form-assignment');
     form.reset();
 
-    form.resource_id.innerHTML = state.resources
-      .map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
-    form.project_id.innerHTML = state.projects
-      .map((p) => `<option value="${p.id}">${esc(p.project_number)} – ${esc(p.name)}</option>`).join('');
-
     const deleteBtn = document.getElementById('assignment-delete-btn');
     const assignment = id ? state.assignments.find((a) => a.id === id) : null;
+
+    form.resource_id.innerHTML = state.resources
+      .map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+    form.project_id.innerHTML =
+      activeProjectsForSelect(assignment ? assignment.project_id : null)
+        .map((p) => `<option value="${p.id}">${esc(p.project_number)} – ${esc(p.name)}</option>`).join('') +
+      '<option value="__new__">+ Skapa nytt projekt</option>';
 
     if (assignment) {
       document.getElementById('assignment-modal-title').textContent = 'Redigera bokning';
@@ -931,12 +1108,31 @@
       }
       deleteBtn.hidden = true;
     }
+    form.project_id.dataset.prev = form.project_id.value;
     openModal('modal-assignment');
   }
 
   function initAssignmentModal() {
     const form = document.getElementById('form-assignment');
     const submitBtn = form.querySelector('button[type="submit"]');
+
+    // "+ Skapa nytt projekt" öppnar den vanliga projektmodalen och förväljer resultatet.
+    form.project_id.addEventListener('change', () => {
+      if (form.project_id.value !== '__new__') {
+        form.project_id.dataset.prev = form.project_id.value;
+        return;
+      }
+      form.project_id.value = form.project_id.dataset.prev || '';
+      openProjectModal(null, {
+        onCreated: (project) => {
+          const newOpt = new Option(`${project.project_number} – ${project.name}`, String(project.id));
+          form.project_id.add(newOpt, form.project_id.querySelector('option[value="__new__"]'));
+          form.project_id.value = String(project.id);
+          form.project_id.dataset.prev = String(project.id);
+          toast(`Projekt ${project.project_number} skapat och valt`);
+        },
+      });
+    });
     form.addEventListener('submit', guardedHandler(submitBtn, async (e) => {
       e.preventDefault();
       const payload = {
@@ -982,7 +1178,8 @@
     const deleteBtn = document.getElementById('task-delete-btn');
 
     form.project_id.innerHTML = '<option value="">Inget projekt</option>' +
-      state.projects.map((p) => `<option value="${p.id}">${esc(p.project_number)} – ${esc(p.name)}</option>`).join('');
+      activeProjectsForSelect(task ? task.project_id : null)
+        .map((p) => `<option value="${p.id}">${esc(p.project_number)} – ${esc(p.name)}</option>`).join('');
 
     if (task) {
       form.id.value = task.id;
@@ -1092,10 +1289,16 @@
     const badge = document.getElementById('pd-status-badge');
     badge.textContent = statusLabels[project.status] || project.status;
     badge.className = `badge ${project.status}`;
+    const es = effectiveStart(project);
+    const showPrel = es.preliminary && es.preliminary !== es.date;
+    const startSpan = es.planned
+      ? `<span>Byggstart (inplanerad): ${esc(es.date)}</span>` +
+        (showPrel ? `<span class="pd-meta-muted">Preliminär start: ${esc(es.preliminary)}</span>` : '')
+      : `<span>Byggstart (preliminär): ${esc(es.date) || '–'}</span>`;
     document.getElementById('pd-meta').innerHTML = `
       <span>Kund: ${esc(project.client) || '–'}</span>
       <span>Projektledare: ${esc(project.project_manager_username) || '–'}</span>
-      <span>Byggstart: ${esc(project.start_date) || '–'}</span>
+      ${startSpan}
       <span>Byggslut: ${esc(project.end_date) || '–'}</span>
     `;
 

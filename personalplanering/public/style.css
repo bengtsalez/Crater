@@ -160,6 +160,24 @@ button.danger:hover { background: #fee2e2; }
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+.tl-week-label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.tl-week-cell {
+  padding: 2px 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--panel);
+  border-right: 1px solid #eceff2;
+  border-bottom: 1px solid var(--border);
+}
 .tl-day-header {
   padding: 4px 0;
   font-size: 11px;
@@ -192,12 +210,15 @@ button.danger:hover { background: #fee2e2; }
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  cursor: pointer;
+  cursor: grab;
   z-index: 2;
   pointer-events: auto;
   display: flex;
   align-items: center;
+  touch-action: pan-y;
+  user-select: none;
 }
+.tl-bar:active { cursor: grabbing; }
 .tl-start-marker {
   position: absolute;
   top: 30px;
@@ -273,6 +294,8 @@ button.danger:hover { background: #fee2e2; }
   z-index: 100;
 }
 .modal-backdrop.open { display: flex; }
+/* Projektmodalen kan öppnas ovanpå bokningsmodalen (skapa projekt från tidslinjen). */
+#modal-project { z-index: 110; }
 .modal {
   background: var(--panel);
   border-radius: 10px;
@@ -300,6 +323,32 @@ button.danger:hover { background: #fee2e2; }
 .modal .row-2 label { flex: 1; }
 .modal .checkbox-label { flex-direction: row; align-items: center; gap: 6px; }
 .modal-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+
+/* ---- Toast ---- */
+#toast-container {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 200;
+  pointer-events: none;
+}
+.toast {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
 
 /* ---- Min sida ---- */
 .ms-overview { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -342,3 +391,5 @@ button.danger:hover { background: #fee2e2; }
 /* ---- Projektdetalj ---- */
 .pd-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .pd-meta { color: var(--text-muted); font-size: 13px; margin-bottom: 16px; display: flex; gap: 16px; flex-wrap: wrap; }
+.pd-meta .pd-meta-muted { opacity: 0.7; font-style: italic; }
+.data-table .hint { color: var(--text-muted); font-size: 11px; }
