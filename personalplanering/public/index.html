@@ -4,13 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Byggproffs Personalplanering</title>
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css?v=4" />
 </head>
 <body>
 <header class="topbar">
   <h1>Byggproffs Personalplanering</h1>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="timeline">Tidslinje</button>
+    <button class="tab-btn" data-tab="analytics">Översikt</button>
     <button class="tab-btn" data-tab="month" hidden>Månadskalender</button>
     <button class="tab-btn" data-tab="projects">Projekt</button>
     <button class="tab-btn" data-tab="resources">Personal</button>
@@ -47,8 +48,40 @@
       </label>
       <button id="btn-add-assignment" class="primary">+ Boka personal på projekt</button>
     </div>
-    <div id="timeline-legend" class="legend"></div>
+    <!-- <div id="timeline-legend" class="legend"></div> -->
     <div id="timeline-wrap" class="timeline-wrap"></div>
+  </section>
+
+  <!-- ÖVERSIKT / ANALYTICS -->
+  <section id="tab-analytics" class="tab-panel">
+    <div class="toolbar">
+      <label class="filter-label">Avdelning:
+        <select id="an-filter">
+          <option value="">Alla</option>
+          <option value="mark">Mark</option>
+          <option value="fasad">Fasad</option>
+          <option value="te" title="Totalentreprenad">TE</option>
+        </select>
+      </label>
+    </div>
+    <div class="ms-overview">
+      <div class="ms-stat">
+        <div class="ms-stat-value" id="an-scheduled">–</div>
+        <div class="ms-stat-label">Inplanerat 30 dagar</div>
+      </div>
+      <div class="ms-stat">
+        <div class="ms-stat-value" id="an-signed">–</div>
+        <div class="ms-stat-label">Signerat framåt</div>
+      </div>
+      <div class="ms-stat">
+        <div class="ms-stat-value" id="an-active">–</div>
+        <div class="ms-stat-label">Pågående idag</div>
+      </div>
+      <div class="ms-stat clickable" id="an-unstaffed-card" role="button" tabindex="0">
+        <div class="ms-stat-value" id="an-unstaffed">–</div>
+        <div class="ms-stat-label">Saknar bemanning</div>
+      </div>
+    </div>
   </section>
 
   <!-- MÅNADSKALENDER -->
@@ -120,12 +153,12 @@
     </div>
     <h2 class="group-title">Anställda</h2>
     <table class="data-table" id="employees-table">
-      <thead><tr><th>Namn</th><th>Kategori</th><th>Telefon</th><th>Aktiv</th><th></th></tr></thead>
+      <thead><tr><th></th><th>Namn</th><th>Kategori</th><th>Telefon</th><th>Aktiv</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
     <h2 class="group-title">Underentreprenörer</h2>
     <table class="data-table" id="subcontractors-table">
-      <thead><tr><th>Namn</th><th>Telefon</th><th>Aktiv</th><th></th></tr></thead>
+      <thead><tr><th></th><th>Namn</th><th>Telefon</th><th>Aktiv</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </section>
@@ -276,6 +309,7 @@
       </select>
     </label>
     <label>Telefon<input name="phone" /></label>
+    <label>Färg på tidslinjen<input name="color" type="color" /></label>
     <label class="checkbox-label"><input type="checkbox" name="active" checked /> Aktiv</label>
     <div class="modal-actions">
       <button type="button" class="danger" id="resource-delete-btn" hidden>Ta bort</button>
@@ -359,6 +393,18 @@
   </form>
 </div>
 
-<script src="app.js"></script>
+<!-- MODAL: Projekt utan bemanning -->
+<div class="modal-backdrop" id="modal-unstaffed">
+  <div class="modal">
+    <h2>Projekt utan bemanning</h2>
+    <div id="an-unstaffed-list" class="task-list"></div>
+    <div class="modal-actions">
+      <div class="spacer"></div>
+      <button type="button" class="ghost" data-close>Stäng</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=4"></script>
 </body>
 </html>

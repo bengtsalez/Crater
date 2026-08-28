@@ -103,8 +103,14 @@ app.get('/api/users', async (req, res, next) => {
 
 const CATEGORIES = ['mark', 'fasad', 'te'];
 
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
 function resolveResourceCategory(type, category) {
   return type === 'anstalld' ? category : null;
+}
+
+function resolveColor(color) {
+  return typeof color === 'string' && HEX_RE.test(color) ? color.toLowerCase() : null;
 }
 
 app.get('/api/resources', async (req, res, next) => {
@@ -127,8 +133,8 @@ app.post('/api/resources', async (req, res, next) => {
     }
     const category = resolveResourceCategory(type, req.body.category);
     const { rows } = await pool.query(
-      'INSERT INTO resources (name, type, category, phone, active) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, type, category, phone || null, active === false ? 0 : 1]
+      'INSERT INTO resources (name, type, category, phone, active, color) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [name, type, category, phone || null, active === false ? 0 : 1, resolveColor(req.body.color)]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -148,14 +154,16 @@ app.put('/api/resources/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'Giltig kategori krävs för anställda.' });
     }
     const category = resolveResourceCategory(newType, newCategory);
+    const color = req.body.color !== undefined ? resolveColor(req.body.color) : existing.color;
     const { rows } = await pool.query(
-      'UPDATE resources SET name=$1, type=$2, category=$3, phone=$4, active=$5 WHERE id=$6 RETURNING *',
+      'UPDATE resources SET name=$1, type=$2, category=$3, phone=$4, active=$5, color=$6 WHERE id=$7 RETURNING *',
       [
         name ?? existing.name,
         newType,
         category,
         phone ?? existing.phone,
         active === undefined ? existing.active : (active ? 1 : 0),
+        color,
         req.params.id,
       ]
     );

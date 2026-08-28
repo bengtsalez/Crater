@@ -8,8 +8,8 @@
     'Januari', 'Februari', 'Mars', 'April', 'Maj', 'Juni',
     'Juli', 'Augusti', 'September', 'Oktober', 'November', 'December',
   ];
-  // Fixed categorical order; colors repeat past 8 simultaneous projects.
-  const PROJECT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948', '#a7a932', '#88438e', '#790909', '#341f94'];
+  // Fallback-palett för resurser som inte har en egen vald färg. Deterministiskt index per resurs-id.
+  const RESOURCE_PALETTE = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948', '#a7a932', '#88438e', '#790909', '#341f94'];
 
   const TL_LABEL_WIDTH = 180;
   const TL_DAY_WIDTH = 36;
@@ -17,6 +17,10 @@
 
   const RESOURCE_CATEGORIES = ['mark', 'fasad', 'te'];
   const CATEGORY_LABELS = { mark: 'Mark', fasad: 'Fasad', te: 'TE' };
+
+  // Översikt/analytics: fönster (dagar framåt från idag) för respektive KPI.
+  const ANALYTICS_UPCOMING_WINDOW_DAYS = 30;
+  const ANALYTICS_UNSTAFFED_LEAD_DAYS = 7;
 
   // ---------- State ----------
 
@@ -40,6 +44,8 @@
     projectsSortColumn: 'project_number',
     projectsSortDirection: 'asc',
     projectsSearchQuery: '',
+    analyticsDepartment: '',
+    analyticsUnstaffed: [],
   };
 
   // ---------- Date helpers ----------
@@ -173,9 +179,49 @@
     }[c]));
   }
 
-  function colorForProject(projectId) {
-    const idx = (Number(projectId) - 1) % PROJECT_COLORS.length;
-    return PROJECT_COLORS[idx < 0 ? idx + PROJECT_COLORS.length : idx];
+  const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+  // Resursens tidslinjefärg: egen vald färg om giltig, annars en stabil palettfärg per id.
+  function colorForResource(resource) {
+    if (resource && typeof resource.color === 'string' && HEX_RE.test(resource.color)) {
+      return resource.color;
+    }
+    const n = RESOURCE_PALETTE.length;
+    const idx = (((Number(resource?.id) - 1) % n) + n) % n;
+    return RESOURCE_PALETTE[Number.isFinite(idx) ? idx : 0];
+  }
+
+  function hexToRgb(hex) {
+    return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  }
+
+  function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  }
+
+  // Linjär blandning av hex mot target ('#ffffff' eller '#000000'), amount 0..1.
+  function mixHex(hex, target, amount) {
+    const a = hexToRgb(hex);
+    const b = hexToRgb(target);
+    return rgbToHex(a[0] + (b[0] - a[0]) * amount, a[1] + (b[1] - a[1]) * amount, a[2] + (b[2] - a[2]) * amount);
+  }
+
+  // Deterministisk, subtil nyans av basfärgen per projekt, så överlappande projekt i samma rad går
+  // att skilja åt utan att grundfärgen (den som väljs i personal-fliken) tappas bort.
+  function shadeForProject(baseHex, projectId) {
+    const step = ((Number(projectId) * 7) % 5) - 2; // heltal -2..2, jämnt fördelat per projekt-id
+    if (!Number.isFinite(step) || step === 0) return baseHex;
+    return step > 0 ? mixHex(baseHex, '#ffffff', step * 0.06) : mixHex(baseHex, '#000000', -step * 0.06);
+  }
+
+  // Vit text som standard (matchar tidslinjens uttryck), mörk text bara för tydligt ljusa färger.
+  function readableText(hex) {
+    const [r, g, b] = hexToRgb(hex).map((v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return luminance > 0.6 ? '#1a1a1a' : '#ffffff';
   }
 
   function formatSum(sum) {
@@ -241,6 +287,54 @@
     return Boolean(project && project.end_date && project.end_date < toISO(new Date()));
   }
 
+  // ---------- Översikt/analytics-beräkningar ----------
+  // Rena funktioner på projekt-/bokningsdata som redan finns i state. Ingen ny hämtning.
+
+  function filterProjectsByDepartment(projects, dept) {
+    return dept ? projects.filter((p) => p.category === dept) : projects;
+  }
+
+  function projectHasStaff(projectId) {
+    return state.assignments.some((a) => a.project_id === projectId);
+  }
+
+  // Projekt vars effektiva start (inplanerad om bokad, annars preliminär) ligger i [today, today+days].
+  function projectsStartingWithin(projects, today, days) {
+    const from = toISO(today);
+    const to = toISO(addDays(today, days));
+    return projects.filter((p) => {
+      const start = effectiveStart(p).date;
+      return start && start >= from && start <= to;
+    });
+  }
+
+  // KPI 1: hela projektsumman för ej avslutade projekt som startar inom kommande N dagar.
+  function getUpcomingScheduledValue(projects, today) {
+    return projectsStartingWithin(
+      projects.filter((p) => p.status !== 'avslutad'), today, ANALYTICS_UPCOMING_WINDOW_DAYS
+    ).reduce((sum, p) => sum + (p.sum || 0), 0);
+  }
+
+  // KPI 2: framtida orderstock = summan för projekt med status "aktiv".
+  function getFutureSignedValue(projects) {
+    return projects
+      .filter((p) => p.status === 'aktiv')
+      .reduce((sum, p) => sum + (p.sum || 0), 0);
+  }
+
+  // KPI 3: antal projekt med status "planerad".
+  function getActiveProjectsToday(projects) {
+    return projects.filter((p) => p.status === 'planerad').length;
+  }
+
+  // KPI 4: ej avslutade projekt som startar inom bemanningsfönstret och saknar bokad personal.
+  function getUnstaffedUpcomingProjects(projects, today) {
+    return projectsStartingWithin(
+      projects.filter((p) => p.status !== 'avslutad' && !projectHasStaff(p.id)),
+      today, ANALYTICS_UNSTAFFED_LEAD_DAYS
+    ).sort((a, b) => effectiveStart(a).date.localeCompare(effectiveStart(b).date));
+  }
+
   async function api(method, url, body) {
     const res = await fetch(url, {
       method,
@@ -288,6 +382,7 @@
     renderProjectsTable();
     renderResourcesTables();
     renderMinSida();
+    renderAnalytics();
     if (state.projectDetailId) renderProjectDetail();
   }
 
@@ -330,7 +425,6 @@
       const classes = isProjectPast(p) ? 'legend-item tl-past' : 'legend-item';
       return `
         <div class="${classes}">
-          <span class="legend-swatch" style="background:${colorForProject(p.id)}"></span>
           <span>${esc(p.project_number)} – ${esc(p.name)}</span>
           ${badge}
         </div>
@@ -452,9 +546,14 @@
           ? `<span class="badge planerad task-count-badge" data-project="${p.id}">${taskCountLabel(count)}</span>`
           : '';
         const pastClass = isProjectPast(p) ? ' tl-past' : '';
+        const flagTitle = [
+          `${p.project_number} – ${p.name}`,
+          p.client ? `Kund: ${p.client}` : '',
+          `Preliminär start: ${p.start_date}`,
+        ].filter(Boolean).join(' · ');
         return `
           <div class="tl-start-marker${pastClass}" style="left:${left}px; top:${top}px"></div>
-          <div class="tl-start-flag${pastClass}" style="left:${left}px; top:${top}px">${esc(p.project_number)} start${badge}</div>
+          <div class="tl-start-flag${pastClass}" style="left:${left}px; top:${top}px" data-tip="${esc(flagTitle)}">${esc(p.project_number)} start${badge}</div>
         `;
       }).join('');
 
@@ -466,6 +565,8 @@
         if (!firstCell) return '';
         const rowTop = firstCell.offsetTop;
         const rowHeight = firstCell.offsetHeight;
+        const baseColor = colorForResource(resource);
+        const textColor = readableText(baseColor);
         const assignments = state.assignments.filter(
           (a) => a.resource_id === resource.id && a.start_date <= rangeEndISO && a.end_date >= rangeStartISO
             && matchesProjectSearch(a.project_number)
@@ -481,7 +582,8 @@
           const width = (endIdx - startIdx + 1) * TL_DAY_WIDTH - 2;
           const project = state.projects.find((p) => p.id === a.project_id);
           const barClasses = isProjectPast(project) ? 'tl-bar tl-past' : 'tl-bar';
-          return `<div class="${barClasses}" style="left:${left}px; top:${rowTop + 3}px; width:${width}px; height:${rowHeight - 6}px; background:${colorForProject(a.project_id)}" data-assignment="${a.id}" title="${esc(a.project_number)} – ${esc(a.project_name)}">${esc(a.project_number)} ${esc(a.project_name)}</div>`;
+          const bg = shadeForProject(baseColor, a.project_id);
+          return `<div class="${barClasses}" style="left:${left}px; top:${rowTop + 3}px; width:${width}px; height:${rowHeight - 6}px; background:${bg}; color:${textColor}" data-assignment="${a.id}" title="${esc(a.project_number)} – ${esc(a.project_name)}">${esc(a.project_number)} ${esc(a.project_name)}</div>`;
         }).join('');
       }).join('');
 
@@ -607,6 +709,27 @@
     document.getElementById('timeline-wrap').addEventListener('click', (e) => {
       const badgeEl = e.target.closest('.task-count-badge');
       if (badgeEl) goToMyTasksForProject(Number(badgeEl.dataset.project));
+    });
+
+    // Direktvisad hover-tooltip för element med data-tip (t.ex. startflaggor) –
+    // utan webbläsarens ~1 s fördröjning för native title.
+    const tip = document.createElement('div');
+    tip.className = 'hover-tip';
+    tip.hidden = true;
+    document.body.appendChild(tip);
+    const wrap = document.getElementById('timeline-wrap');
+    wrap.addEventListener('mouseover', (e) => {
+      const el = e.target.closest('[data-tip]');
+      if (!el) return;
+      tip.textContent = el.getAttribute('data-tip');
+      tip.hidden = false;
+      const r = el.getBoundingClientRect();
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - tip.offsetWidth - 8));
+      tip.style.left = `${left}px`;
+      tip.style.top = `${r.bottom + 6}px`;
+    });
+    wrap.addEventListener('mouseout', (e) => {
+      if (e.target.closest('[data-tip]')) tip.hidden = true;
     });
   }
 
@@ -835,6 +958,7 @@
     const tbody = document.querySelector(tbodySelector);
     tbody.innerHTML = resources.map((r) => `
       <tr data-id="${r.id}">
+        <td><span class="res-swatch" style="background:${colorForResource(r)}"></span></td>
         <td>${esc(r.name)}</td>
         ${showCategory ? `<td>${CATEGORY_LABELS[r.category] || '–'}</td>` : ''}
         <td>${esc(r.phone) || '–'}</td>
@@ -1022,10 +1146,12 @@
       form.type.value = resource.type;
       form.category.value = resource.category || 'mark';
       form.phone.value = resource.phone || '';
+      form.color.value = colorForResource(resource);
       form.active.checked = Boolean(resource.active);
       deleteBtn.hidden = false;
     } else {
       form.id.value = '';
+      form.color.value = RESOURCE_PALETTE[state.resources.length % RESOURCE_PALETTE.length];
       form.active.checked = true;
       deleteBtn.hidden = true;
     }
@@ -1044,6 +1170,7 @@
         type: form.type.value,
         category: form.type.value === 'anstalld' ? form.category.value : null,
         phone: form.phone.value.trim(),
+        color: form.color.value,
         active: form.active.checked,
       };
       const id = form.id.value;
@@ -1573,6 +1700,68 @@
     });
   }
 
+  // ---------- Översikt/analytics ----------
+
+  function renderAnalytics() {
+    const card = document.getElementById('an-unstaffed-card');
+    if (!card) return; // vyn finns inte i DOM (bör aldrig hända)
+
+    const today = new Date();
+    const projects = filterProjectsByDepartment(state.projects, state.analyticsDepartment);
+
+    const scheduled = getUpcomingScheduledValue(projects, today);
+    const signed = getFutureSignedValue(projects);
+    const active = getActiveProjectsToday(projects);
+    const unstaffed = getUnstaffedUpcomingProjects(projects, today);
+    state.analyticsUnstaffed = unstaffed;
+
+    document.getElementById('an-scheduled').textContent = formatSum(scheduled);
+    document.getElementById('an-signed').textContent = formatSum(signed);
+    document.getElementById('an-active').textContent = `${active} projekt`;
+    document.getElementById('an-unstaffed').textContent = `${unstaffed.length} projekt`;
+    card.classList.toggle('ms-stat-warning', unstaffed.length > 0);
+  }
+
+  function renderUnstaffedModal() {
+    const list = state.analyticsUnstaffed;
+    document.getElementById('an-unstaffed-list').innerHTML = list.length
+      ? list.map((p) => `
+          <div class="task-row">
+            <div class="task-main">
+              <div class="task-title">${esc(p.project_number)} – ${esc(p.name)}</div>
+              <div class="task-meta">
+                <span>Start: ${esc(effectiveStart(p).date)}</span>
+                ${p.client ? `<span>${esc(p.client)}</span>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('')
+      : '<div class="empty-state">Inga projekt utan bemanning inom de närmaste dagarna.</div>';
+  }
+
+  function initAnalyticsTab() {
+    const filter = document.getElementById('an-filter');
+    if (!filter) return;
+    filter.value = state.analyticsDepartment;
+    filter.addEventListener('change', (e) => {
+      state.analyticsDepartment = e.target.value;
+      renderAnalytics();
+    });
+
+    const card = document.getElementById('an-unstaffed-card');
+    const openDrilldown = () => {
+      renderUnstaffedModal();
+      openModal('modal-unstaffed');
+    };
+    card.addEventListener('click', openDrilldown);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openDrilldown();
+      }
+    });
+  }
+
   // ---------- Init ----------
 
   function initLogout() {
@@ -1590,6 +1779,7 @@
     initProjectsTable();
     initResourcesTables();
     initMinSidaTab();
+    initAnalyticsTab();
     initProjectDetailTab();
     initModalDismiss();
     initProjectModal();

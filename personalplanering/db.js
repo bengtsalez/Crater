@@ -55,6 +55,8 @@ const ready = pool
 
     ALTER TABLE resources ADD COLUMN IF NOT EXISTS category TEXT;
 
+    ALTER TABLE resources ADD COLUMN IF NOT EXISTS color TEXT;
+
     ALTER TABLE projects ADD COLUMN IF NOT EXISTS category TEXT;
 
     CREATE TABLE IF NOT EXISTS tasks (
