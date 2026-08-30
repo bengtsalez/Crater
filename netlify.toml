@@ -1,9 +1,10 @@
+# Netlify bygger nu Nuxt-appen i personalplanering-nuxt/.
+# Nitro upptäcker Netlify automatiskt och genererar serverfunktion + redirects.
+# (Gamla vanilla-appen i personalplanering/ finns kvar men deployas inte härifrån.)
 [build]
-  base = "personalplanering"
-  publish = "public"
-  functions = "netlify/functions"
+  base = "personalplanering-nuxt"
+  command = "npm run build"
+  publish = "dist"
 
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api"
-  status = 200
+[build.environment]
+  NODE_VERSION = "20"
