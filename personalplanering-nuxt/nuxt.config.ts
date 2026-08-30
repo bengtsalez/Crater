@@ -21,10 +21,8 @@ export default defineNuxtConfig({
     },
   },
 
-  runtimeConfig: {
-    databaseUrl: process.env.DATABASE_URL,
-    jwtSecret: process.env.JWT_SECRET,
-  },
+  // DATABASE_URL och JWT_SECRET läses direkt via process.env i server/utils/{db,auth}.ts
+  // vid runtime – de får INTE bäddas in i bunten (Netlifys secrets-scan stoppar bygget).
 
   // Nitro auto-detects Netlify in CI; keep server routes under /server/api.
   nitro: {
