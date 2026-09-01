@@ -59,24 +59,44 @@ export function projectsStartingWithin(
   })
 }
 
-// KPI 1: hela projektsumman för ej avslutade projekt som startar inom kommande N dagar.
+// project_id-Set för ej avslutade projekt med minst en assignment som överlappar [fromISO, toISO].
+function projectIdsWithAssignmentInWindow(
+  assignments: Assignment[],
+  projects: Project[],
+  fromISO: string,
+  toISO: string
+): Set<number> {
+  const eligible = new Set(projects.filter((p) => p.status !== 'avslutad').map((p) => p.id))
+  const ids = new Set<number>()
+  for (const a of assignments) {
+    if (eligible.has(a.project_id) && a.start_date <= toISO && a.end_date >= fromISO) {
+      ids.add(a.project_id)
+    }
+  }
+  return ids
+}
+
+// KPI 1: hela projektsumman för ej avslutade projekt som har minst en assignment
+// som överlappar [idag, idag+N dagar].
 export function getUpcomingScheduledValue(assignments: Assignment[], projects: Project[], today: Date): number {
-  return projectsStartingWithin(
-    assignments,
-    projects.filter((p) => p.status !== 'avslutad'),
-    today,
-    ANALYTICS_UPCOMING_WINDOW_DAYS
-  ).reduce((sum, p) => sum + (p.sum || 0), 0)
+  const from = toISO(today)
+  const to = toISO(addDays(today, ANALYTICS_UPCOMING_WINDOW_DAYS))
+  const ids = projectIdsWithAssignmentInWindow(assignments, projects, from, to)
+  const byId = new Map(projects.map((p) => [p.id, p]))
+  return [...ids].reduce((sum, id) => sum + (byId.get(id)?.sum || 0), 0)
 }
 
-// KPI 2: framtida orderstock = summan för projekt med status "aktiv".
-export function getFutureSignedValue(projects: Project[]): number {
-  return projects.filter((p) => p.status === 'aktiv').reduce((sum, p) => sum + (p.sum || 0), 0)
+// KPI 2: framtida orderstock = summan för ej avslutade projekt som saknar bokad personal.
+export function getFutureSignedValue(assignments: Assignment[], projects: Project[]): number {
+  return projects
+    .filter((p) => p.status !== 'avslutad' && !projectHasStaff(assignments, p.id))
+    .reduce((sum, p) => sum + (p.sum || 0), 0)
 }
 
-// KPI 3: antal projekt med status "planerad".
-export function getActiveProjectsToday(projects: Project[]): number {
-  return projects.filter((p) => p.status === 'planerad').length
+// KPI 3: antal unika ej avslutade projekt med minst en assignment som pågår idag.
+export function getActiveProjectsToday(assignments: Assignment[], projects: Project[], today: Date): number {
+  const t = toISO(today)
+  return projectIdsWithAssignmentInWindow(assignments, projects, t, t).size
 }
 
 // KPI 4: ej avslutade projekt som startar inom bemanningsfönstret och saknar bokad personal.

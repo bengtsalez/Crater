@@ -66,6 +66,8 @@ export const ready = pool.query(`
 
     ALTER TABLE projects ADD COLUMN IF NOT EXISTS category TEXT;
 
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS status_override TEXT;
+
     CREATE TABLE IF NOT EXISTS tasks (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

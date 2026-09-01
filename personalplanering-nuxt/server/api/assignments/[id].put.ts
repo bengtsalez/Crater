@@ -2,6 +2,8 @@ import { pool } from '../../utils/db'
 import { requireOrg } from '../../utils/auth'
 import { ASSIGNMENT_SELECT } from '../../utils/queries'
 import { apiError } from '../../utils/http'
+import { clearStatusOverride, refreshProjectStatuses } from '../../utils/projectStatus'
+import { syncProjectDatesToAssignments } from '../../utils/projectDates'
 
 export default defineEventHandler(async (event) => {
   const orgId = requireOrg(event)
@@ -35,6 +37,17 @@ export default defineEventHandler(async (event) => {
     'UPDATE assignments SET resource_id=$1, project_id=$2, start_date=$3, end_date=$4, note=$5 WHERE id=$6 AND org_id=$7',
     [resource_id, project_id, start_date, end_date, b.note ?? existing.note, id, orgId]
   )
+  // Bokningen (och ev. dess projekt) har ändrats → nollställ override och räkna om.
+  await clearStatusOverride(orgId, existing.project_id)
+  if (project_id !== existing.project_id) await clearStatusOverride(orgId, project_id)
+  if (b.sync_project_dates) {
+    await syncProjectDatesToAssignments(orgId, project_id)
+    if (project_id !== existing.project_id) {
+      await syncProjectDatesToAssignments(orgId, existing.project_id)
+    }
+  }
+  await refreshProjectStatuses(orgId)
+
   const { rows } = await pool.query(`${ASSIGNMENT_SELECT} WHERE a.id = $1`, [id])
   return rows[0]
 })

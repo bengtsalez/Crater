@@ -31,7 +31,6 @@ async function add() {
       sum: form.sum === '' ? '' : Number(form.sum),
       start_date: form.start_date,
       end_date: form.end_date,
-      status: 'aktiv',
     })
     await loadAll()
     Object.assign(form, blank())

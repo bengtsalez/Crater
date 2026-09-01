@@ -18,8 +18,8 @@ const filtered = computed(() => filterProjectsByDepartment(projects.value, depar
 
 const today = new Date()
 const scheduled = computed(() => getUpcomingScheduledValue(assignments.value, filtered.value, today))
-const signed = computed(() => getFutureSignedValue(filtered.value))
-const active = computed(() => getActiveProjectsToday(filtered.value))
+const signed = computed(() => getFutureSignedValue(assignments.value, filtered.value))
+const active = computed(() => getActiveProjectsToday(assignments.value, filtered.value, today))
 const unstaffed = computed(() => getUnstaffedUpcomingProjects(assignments.value, filtered.value, today))
 
 function openDrilldown() {

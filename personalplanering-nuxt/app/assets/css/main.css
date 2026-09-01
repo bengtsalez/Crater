@@ -226,6 +226,89 @@ button.plain.danger:hover { background: #fee2e2; }
   user-select: none;
 }
 .tl-bar:active { cursor: grabbing; }
+.tl-bar-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: ew-resize;
+  z-index: 4;
+  touch-action: none;
+}
+.tl-bar-handle-start { left: 0; }
+.tl-bar-handle-end { right: 0; }
+.tl-bar:hover .tl-bar-handle::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  width: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.75);
+}
+.tl-bar:hover .tl-bar-handle-start::after { left: 2px; }
+.tl-bar:hover .tl-bar-handle-end::after { right: 2px; }
+
+.tl-day-header,
+.tl-week-cell { cursor: grab; }
+.timeline-wrap.tl-panning { cursor: grabbing; user-select: none; }
+.timeline-wrap.tl-panning .tl-day-header,
+.timeline-wrap.tl-panning .tl-week-cell { cursor: grabbing; }
+
+/* Tidslinje + lista med ej inplanerade projekt bredvid */
+.timeline-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.timeline-layout .timeline-wrap { flex: 1; min-width: 0; }
+.tl-unplanned {
+  flex: 0 0 260px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  max-height: 75vh;
+  overflow-y: auto;
+}
+.tl-unplanned-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+.tl-unplanned-empty { font-size: 13px; color: var(--text-muted); }
+.tl-unplanned-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tl-unplanned-item {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+}
+.tl-unplanned-item:hover { border-color: var(--primary); background: var(--panel); }
+.tl-unplanned-name { display: block; font-size: 13px; font-weight: 500; }
+.tl-unplanned-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+@media (max-width: 900px) {
+  .timeline-layout { flex-direction: column; }
+  .tl-unplanned { flex-basis: auto; width: 100%; max-height: none; }
+}
 .tl-start-marker {
   position: absolute;
   top: 30px;

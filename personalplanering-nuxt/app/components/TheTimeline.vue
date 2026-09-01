@@ -13,7 +13,7 @@ import {
 
 const { resources, projects, assignments, tasks, currentUser, loadAll } = useAppData()
 const { keys: departmentKeys, labelFor: departmentLabel, options: departmentOptions } = useDepartments()
-const { goToMyTasksForProject } = useUiState()
+const { goToMyTasksForProject, openProjectDetail } = useUiState()
 const { openAssignmentModal } = useModals()
 const { api } = useApi()
 const toast = useToast()
@@ -67,6 +67,13 @@ const subcontractors = computed(() =>
   filterType.value && filterType.value !== 'underentreprenor'
     ? []
     : resources.value.filter((r) => r.type === 'underentreprenor')
+)
+
+// Projekt som ännu inte planerats in (status "aktiv") – visas som lista bredvid tidslinjen.
+const unplannedProjects = computed(() =>
+  projects.value
+    .filter((p) => p.status === 'aktiv' && matchesProjectSearch(p.project_number))
+    .sort((a, b) => a.project_number.localeCompare(b.project_number, 'sv'))
 )
 
 const gridCols = computed(
@@ -127,6 +134,7 @@ interface OverlayBar {
 }
 
 const gridRef = ref<HTMLElement | null>(null)
+const wrapRef = ref<HTMLElement | null>(null)
 const markers = ref<OverlayMarker[]>([])
 const bars = ref<OverlayBar[]>([])
 
@@ -245,7 +253,26 @@ watch(
   },
   { immediate: true }
 )
-onMounted(() => computeOverlay())
+onMounted(() => {
+  computeOverlay()
+  // Horisontell scroll i tidslinjen: mushjul rullar i sidled när det finns
+  // överskott, annars lämnas sidans normala scroll ifred.
+  const wrap = wrapRef.value
+  if (!wrap) return
+  wrap.addEventListener(
+    'wheel',
+    (e) => {
+      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
+      if (wrap.scrollWidth <= wrap.clientWidth) return
+      const atStart = wrap.scrollLeft <= 0 && e.deltaY < 0
+      const atEnd = wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth && e.deltaY > 0
+      if (atStart || atEnd) return
+      wrap.scrollLeft += e.deltaY
+      e.preventDefault()
+    },
+    { passive: false }
+  )
+})
 
 // ---------- Toolbar ----------
 
@@ -335,6 +362,114 @@ function startBarDrag(e: PointerEvent, assignmentId: number) {
   barEl.addEventListener('pointercancel', onUp)
 }
 
+// Ändra längd på en bokning genom att dra i vänster-/högerkanten.
+// Att dra kanten n rutor förlänger/förkortar planeringen n kalenderdagar.
+function startBarResize(e: PointerEvent, assignmentId: number, edge: 'start' | 'end') {
+  if (e.button !== 0) return
+  const assignment = assignments.value.find((a) => a.id === assignmentId)
+  if (!assignment) return
+  const handleEl = e.currentTarget as HTMLElement
+  const barEl = handleEl.closest('.tl-bar') as HTMLElement | null
+  if (!barEl) return
+
+  const startX = e.clientX
+  const initLeft = parseFloat(barEl.style.left) || 0
+  const initWidth = parseFloat(barEl.style.width) || TL_DAY_WIDTH
+  const minW = TL_DAY_WIDTH - 2
+  let deltaCols = 0
+  let moved = false
+  try {
+    handleEl.setPointerCapture(e.pointerId)
+  } catch {
+    /* ignore */
+  }
+
+  const reset = () => {
+    barEl.style.left = `${initLeft}px`
+    barEl.style.width = `${initWidth}px`
+  }
+
+  const onMove = (ev: PointerEvent) => {
+    const dx = ev.clientX - startX
+    if (!moved && Math.abs(dx) > 3) moved = true
+    deltaCols = Math.round(dx / TL_DAY_WIDTH)
+    let snap = deltaCols * TL_DAY_WIDTH
+    if (edge === 'start') {
+      if (initWidth - snap < minW) snap = initWidth - minW
+      barEl.style.left = `${initLeft + snap}px`
+      barEl.style.width = `${initWidth - snap}px`
+    } else {
+      if (initWidth + snap < minW) snap = minW - initWidth
+      barEl.style.width = `${initWidth + snap}px`
+    }
+  }
+
+  const onUp = async () => {
+    handleEl.removeEventListener('pointermove', onMove)
+    handleEl.removeEventListener('pointerup', onUp)
+    handleEl.removeEventListener('pointercancel', onUp)
+    if (!moved || deltaCols === 0) {
+      reset()
+      return
+    }
+    dragSuppressClick = true
+
+    let newStart = assignment.start_date
+    let newEnd = assignment.end_date
+    if (edge === 'start') {
+      let d = addDays(fromISO(assignment.start_date), deltaCols)
+      if (d.getTime() > fromISO(assignment.end_date).getTime()) d = fromISO(assignment.end_date)
+      newStart = toISO(d)
+    } else {
+      let d = addDays(fromISO(assignment.end_date), deltaCols)
+      if (d.getTime() < fromISO(assignment.start_date).getTime()) d = fromISO(assignment.start_date)
+      newEnd = toISO(d)
+    }
+    if (newStart === assignment.start_date && newEnd === assignment.end_date) {
+      reset()
+      return
+    }
+
+    try {
+      await api('PUT', `/api/assignments/${assignmentId}`, {
+        start_date: newStart,
+        end_date: newEnd,
+      })
+      await loadAll()
+      toast.add({ title: 'Bokningens längd ändrad' })
+    } catch (err) {
+      toast.add({ title: (err as Error).message, color: 'error' })
+      await loadAll()
+    }
+  }
+
+  handleEl.addEventListener('pointermove', onMove)
+  handleEl.addEventListener('pointerup', onUp)
+  handleEl.addEventListener('pointercancel', onUp)
+}
+
+// Dra i tidslinjalen (vecko-/dagraden) för att panorera i sidled.
+function startRulerPan(e: PointerEvent) {
+  if (e.button !== 0) return
+  if (!(e.target as HTMLElement).closest('.tl-day-header, .tl-week-cell')) return
+  const wrap = wrapRef.value
+  if (!wrap) return
+  e.preventDefault()
+  const startX = e.clientX
+  const startScroll = wrap.scrollLeft
+  wrap.classList.add('tl-panning')
+  const onMove = (ev: PointerEvent) => {
+    wrap.scrollLeft = startScroll - (ev.clientX - startX)
+  }
+  const onUp = () => {
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    wrap.classList.remove('tl-panning')
+  }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+}
+
 // ---------- Hover-tip för startflaggor ----------
 const tip = reactive({ show: false, text: '', left: 0, top: 0 })
 function showTip(e: MouseEvent, text: string) {
@@ -379,7 +514,8 @@ function hideTip() {
       <button class="plain primary" @click="openAssignmentModal({})">+ Boka personal på projekt</button>
     </div>
 
-    <div class="timeline-wrap">
+    <div class="timeline-layout">
+      <div ref="wrapRef" class="timeline-wrap" @pointerdown="startRulerPan">
       <div class="timeline-inner">
         <div
           ref="gridRef"
@@ -496,10 +632,40 @@ function hideTip() {
             @click="onBarClick(b.assignmentId)"
             @pointerdown="startBarDrag($event, b.assignmentId)"
           >
+            <span
+              class="tl-bar-handle tl-bar-handle-start"
+              @pointerdown.stop="startBarResize($event, b.assignmentId, 'start')"
+            />
             {{ b.label }}
+            <span
+              class="tl-bar-handle tl-bar-handle-end"
+              @pointerdown.stop="startBarResize($event, b.assignmentId, 'end')"
+            />
           </div>
         </div>
       </div>
+      </div>
+
+      <aside class="tl-unplanned">
+        <h3 class="tl-unplanned-title">Ej inplanerade projekt</h3>
+        <p v-if="!unplannedProjects.length" class="tl-unplanned-empty">
+          Inga aktiva projekt att planera in.
+        </p>
+        <ul v-else class="tl-unplanned-list">
+          <li
+            v-for="p in unplannedProjects"
+            :key="p.id"
+            class="tl-unplanned-item"
+            @click="openProjectDetail(p.id)"
+          >
+            <span class="tl-unplanned-name">{{ p.project_number }} – {{ p.name }}</span>
+            <span class="tl-unplanned-meta">
+              <span v-if="p.client">{{ p.client }}</span>
+              <span v-if="p.start_date">Prel. start {{ p.start_date }}</span>
+            </span>
+          </li>
+        </ul>
+      </aside>
     </div>
 
     <div v-if="tip.show" class="hover-tip" :style="{ left: tip.left + 'px', top: tip.top + 'px' }">

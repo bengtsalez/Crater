@@ -72,7 +72,7 @@ async function deleteProject(id: number) {
 
 async function reactivate(id: number) {
   try {
-    await api('PUT', `/api/projects/${id}`, { status: 'aktiv' })
+    await api('PUT', `/api/projects/${id}`, { status_override: 'aktiv' })
     await loadAll()
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
@@ -129,7 +129,10 @@ async function reactivate(id: number) {
             {{ startInfo(p).text }}<span v-if="startInfo(p).prel" class="hint"> (prel.)</span>
           </td>
           <td>{{ p.end_date || '–' }}</td>
-          <td><span class="badge" :class="p.status">{{ STATUS_LABELS[p.status] || p.status }}</span></td>
+          <td>
+            <span class="badge" :class="p.status">{{ STATUS_LABELS[p.status] || p.status }}</span>
+            <span v-if="p.status_override" class="hint" title="Manuellt tvingad status"> (manuell)</span>
+          </td>
           <td>
             <button class="plain danger" @click.stop="deleteProject(p.id)">Ta bort</button>
           </td>

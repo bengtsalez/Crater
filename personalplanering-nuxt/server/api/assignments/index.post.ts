@@ -2,11 +2,13 @@ import { pool } from '../../utils/db'
 import { requireOrg } from '../../utils/auth'
 import { ASSIGNMENT_SELECT } from '../../utils/queries'
 import { apiError } from '../../utils/http'
+import { clearStatusOverride, refreshProjectStatuses } from '../../utils/projectStatus'
+import { syncProjectDatesToAssignments } from '../../utils/projectDates'
 
 export default defineEventHandler(async (event) => {
   const orgId = requireOrg(event)
   const b = await readBody(event)
-  const { resource_id, project_id, start_date, end_date, note } = b || {}
+  const { resource_id, project_id, start_date, end_date, note, sync_project_dates } = b || {}
   if (!resource_id || !project_id || !start_date || !end_date) {
     throw apiError(400, 'Resurs, projekt, startdatum och slutdatum krävs.')
   }
@@ -29,6 +31,11 @@ export default defineEventHandler(async (event) => {
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
     [orgId, resource_id, project_id, start_date, end_date, note || null]
   )
+  // Ny bokning → projektet är inplanerat igen; låt automatiken styra statusen.
+  await clearStatusOverride(orgId, project_id)
+  if (sync_project_dates) await syncProjectDatesToAssignments(orgId, project_id)
+  await refreshProjectStatuses(orgId)
+
   const { rows } = await pool.query(`${ASSIGNMENT_SELECT} WHERE a.id = $1`, [inserted.rows[0].id])
   setResponseStatus(event, 201)
   return rows[0]

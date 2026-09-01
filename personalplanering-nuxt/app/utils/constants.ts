@@ -13,7 +13,7 @@ export const RESOURCE_PALETTE = [
 
 export const TL_LABEL_WIDTH = 180
 export const TL_DAY_WIDTH = 36
-export const TL_VISIBLE_DAYS = 31
+export const TL_VISIBLE_DAYS = 56
 
 // Översikt/analytics: fönster (dagar framåt från idag) för respektive KPI.
 export const ANALYTICS_UPCOMING_WINDOW_DAYS = 30

@@ -17,6 +17,10 @@ const editing = computed(() => !!modal.value.assignment)
 const saving = ref(false)
 const deleting = ref(false)
 
+// Kom ihåg senaste valet under sessionen så man slipper kryssa i om
+// varje gång man bokar flera personer på samma projekt.
+let lastSyncProjectDates = false
+
 const form = reactive({
   id: '' as number | '',
   resource_id: '' as number | '',
@@ -24,7 +28,10 @@ const form = reactive({
   start_date: '',
   end_date: '',
   note: '',
+  sync_project_dates: false,
 })
+
+const canSyncProjectDates = computed(() => typeof form.project_id === 'number')
 
 let prevProjectId: number | '' = ''
 
@@ -45,6 +52,7 @@ watch(
         start_date: a.start_date,
         end_date: a.end_date,
         note: a.note || '',
+        sync_project_dates: lastSyncProjectDates,
       })
     } else {
       Object.assign(form, {
@@ -54,6 +62,7 @@ watch(
         start_date: modal.value.date || '',
         end_date: modal.value.date || '',
         note: '',
+        sync_project_dates: lastSyncProjectDates,
       })
     }
     prevProjectId = typeof form.project_id === 'number' ? form.project_id : ''
@@ -78,12 +87,15 @@ function onProjectChange() {
 async function submit() {
   if (saving.value) return
   saving.value = true
+  const syncDates = canSyncProjectDates.value && form.sync_project_dates
+  lastSyncProjectDates = syncDates
   const payload = {
     resource_id: Number(form.resource_id),
     project_id: Number(form.project_id),
     start_date: form.start_date,
     end_date: form.end_date,
     note: form.note.trim(),
+    sync_project_dates: syncDates,
   }
   try {
     if (form.id) {
@@ -139,6 +151,10 @@ async function remove() {
           <label>Till *<input v-model="form.end_date" type="date" required></label>
         </div>
         <label>Anteckning<input v-model="form.note"></label>
+        <label v-if="canSyncProjectDates" class="checkbox-label">
+          <input v-model="form.sync_project_dates" type="checkbox">
+          Uppdatera projektets start- och slutdatum efter bokningarna
+        </label>
         <div class="modal-actions">
           <button v-if="editing" type="button" class="plain danger" :disabled="deleting" @click="remove">Ta bort</button>
           <div class="spacer" />

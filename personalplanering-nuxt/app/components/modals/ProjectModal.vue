@@ -28,7 +28,7 @@ const form = reactive({
   sum: '' as number | '',
   start_date: '',
   end_date: '',
-  status: 'aktiv',
+  status_override: '',
   notes: '',
 })
 
@@ -48,7 +48,7 @@ watch(
         sum: p.sum ?? '',
         start_date: p.start_date || '',
         end_date: p.end_date || '',
-        status: p.status,
+        status_override: p.status_override || '',
         notes: p.notes || '',
       })
     } else {
@@ -62,7 +62,7 @@ watch(
         sum: '',
         start_date: '',
         end_date: '',
-        status: 'aktiv',
+        status_override: '',
         notes: '',
       })
       try {
@@ -87,7 +87,7 @@ async function submit() {
     sum: form.sum === '' ? '' : Number(form.sum),
     start_date: form.start_date,
     end_date: form.end_date,
-    status: form.status,
+    status_override: form.status_override || null,
     notes: form.notes.trim(),
   }
   try {
@@ -150,11 +150,17 @@ async function remove() {
           <label>Byggslut<input v-model="form.end_date" type="date"></label>
         </div>
         <label>Status
-          <select v-model="form.status">
-            <option value="aktiv">Aktiv</option>
-            <option value="planerad">Planerad</option>
-            <option value="avslutad">Avslutad</option>
+          <select v-model="form.status_override">
+            <option value="">Automatiskt (styrs av tidslinjen)</option>
+            <option value="aktiv">Tvinga: Aktiv</option>
+            <option value="planerad">Tvinga: Planerad</option>
+            <option value="avslutad">Tvinga: Avslutad</option>
           </select>
+          <span class="hint">
+            Automatiskt: aktiv tills projektet bokas in, planerad när det ligger i
+            tidslinjen, avslutad när sista bokningen passerat. En tvingad status
+            gäller tills projektets bokningar ändras.
+          </span>
         </label>
         <label>Anteckningar<textarea v-model="form.notes" rows="2" /></label>
         <div class="modal-actions">

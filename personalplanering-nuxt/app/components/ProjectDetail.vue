@@ -91,6 +91,7 @@ async function deleteTask(t: Task) {
     <div class="pd-header">
       <h2 class="pd-title">{{ project.project_number }} – {{ project.name }}</h2>
       <span class="badge" :class="project.status">{{ STATUS_LABELS[project.status] || project.status }}</span>
+      <span v-if="project.status_override" class="hint" title="Manuellt tvingad status">manuell</span>
     </div>
     <div class="pd-meta">
       <span>Kund: {{ project.client || '–' }}</span>

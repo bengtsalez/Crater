@@ -57,6 +57,7 @@ export interface Project {
   start_date: string | null
   end_date: string | null
   status: string
+  status_override: string | null
   notes: string | null
   category: string | null
 }
