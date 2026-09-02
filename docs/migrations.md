@@ -18,8 +18,10 @@ enkel runner.
     `/api/**` ger 500 tills det är löst – samma "blast radius" som den gamla
     bootstrap-strängen).
   - `version` = postens `version`-fält i `index.ts`.
-- `server/utils/db.ts`: `export const ready = pool.query(<bootstrap>).then(() => runMigrations())`.
-  `server/middleware/auth.ts` gör `await ready` före varje `/api/**`-request.
+- `server/utils/db.ts`: `ensureSchema()` = memoiserad `pool.query(<bootstrap>).then(() => runMigrations())`.
+  `server/middleware/auth.ts` gör `await ensureSchema()` före varje `/api/**`-request. Vid ett
+  övergående fel nollställs memon så nästa request försöker igen (i stället för att cacha
+  felet för hela funktionsinstansens livstid).
 
 ## Köra manuellt
 

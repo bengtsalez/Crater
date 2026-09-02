@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { pool, ready } from '../server/utils/db'
+import { pool, ensureSchema } from '../server/utils/db'
 
 async function main() {
   const [username, password] = process.argv.slice(2)
@@ -9,7 +9,7 @@ async function main() {
     return
   }
 
-  await ready
+  await ensureSchema()
   const password_hash = await bcrypt.hash(password, 10)
   await pool.query(
     `INSERT INTO users (username, password_hash) VALUES ($1, $2)

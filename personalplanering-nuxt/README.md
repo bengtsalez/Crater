@@ -1,8 +1,8 @@
 # Personalplanering (Nuxt)
 
-Omskrivning av `../personalplanering/` (vanilla-JS SPA + Express) i **Nuxt 4 + Nuxt UI 4 +
-Nitro**, i TypeScript. Samma funktionalitet, **samma databas** (samma `DATABASE_URL`), samma
-API-kontrakt.
+**Nuxt 4 + Nuxt UI 4 + Nitro**, i TypeScript. Ursprungligen en omskrivning av den gamla
+vanilla-JS + Express-appen (`personalplanering/`, borttagen 2026-09-02); samma databas
+och samma API-kontrakt lever kvar.
 
 ## Stack
 
@@ -18,7 +18,7 @@ API-kontrakt.
 
 ```bash
 npm install
-# .env behöver DATABASE_URL + JWT_SECRET (kopiera från ../personalplanering/.env)
+# .env behöver DATABASE_URL + JWT_SECRET (hämtas från Netlify-sitens env-vars)
 npm run dev          # http://localhost:3001  (PORT i .env)
 ```
 
@@ -60,7 +60,7 @@ npm install
 npm run dev
 ```
 
-Dev-servern kör på **port 3001** (gamla Express-appen använder 3000).
+Dev-servern kör på **port 3001**.
 
 ## Deploy (Netlify)
 

@@ -1,7 +1,7 @@
 # Flerkund-arkitektur (multi-tenancy)
 
-Gäller `personalplanering-nuxt/`. Den gamla `personalplanering/` (Express) delar databas
-men är permanent låst till en organisation ("Byggproffs", org 1).
+Gäller `personalplanering-nuxt/`. Den gamla `personalplanering/` (Express) delade samma
+databas men togs bort 2026-09-02 (se "Arv från den borttagna Express-appen" nedan).
 
 ## Modell
 
@@ -26,16 +26,16 @@ men är permanent låst till en organisation ("Byggproffs", org 1).
   `key` är **oföränderlig** – UI redigerar bara `label`. Att ta bort en avdelning som
   används av personal/projekt ger 409.
 
-## Gamla Express-appen
+## Arv från den borttagna Express-appen
 
-- Opåverkad: dess `INSERT`s nämner aldrig `org_id` och får `DEFAULT` = Byggproffs.
-- Dess `db.js`-bootstrap är enbart `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`
-  → no-ops mot det migrerade schemat. **Rör den inte.**
-- Känd avvikelse: dess `/api/projects/next-number` räknar globalt `MAX(project_number)`,
-  inte per org. Ofarligt (unikhet är per org) men kan lämna luckor i Byggproffs-numrering
-  när andra orgar finns.
-- Byt eller radera **inte** de tre ursprungsavdelningarna (`mark`/`fasad`/`te`) så länge
-  gamla appen används – dess statiska frontend skickar de nycklarna hårdkodat.
+Den gamla `personalplanering/` (Express + vanilla-JS) togs bort 2026-09-02. Spår som finns
+kvar i den delade databasen:
+
+- `org_id`-kolumnerna har fortfarande `DEFAULT` = Byggproffs (org 1) från
+  `0001_multitenancy`. Kan tas bort med en framtida migration nu när ingen skrivare
+  förlitar sig på defaulten, men är ofarligt att låta stå.
+- De tre ursprungsavdelningarna (`mark`/`fasad`/`te`) för org 1 skapades av den gamla appen.
+  Nu redigerbara som vilken avdelning som helst – inget hårdkodat beroende kvar.
 
 ## Self-service signup
 

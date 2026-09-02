@@ -1,6 +1,6 @@
 import { SESSION_COOKIE, verifySession, signSession, setSessionCookie } from '../utils/auth'
 import type { SessionPayload } from '../utils/auth'
-import { pool, ready } from '../utils/db'
+import { pool, ensureSchema } from '../utils/db'
 
 const PUBLIC_API_PATHS = new Set(['/api/login', '/api/logout', '/api/signup'])
 
@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   if (!path.startsWith('/api/')) return
 
   // Säkerställ att schema-bootstrap + migreringar är klara innan någon query körs.
-  await ready
+  await ensureSchema()
 
   if (PUBLIC_API_PATHS.has(path)) return
 

@@ -1,7 +1,7 @@
 import { pool } from './db'
 import { MIGRATIONS } from '../migrations'
 
-// Framåtriktad migrationsrunner. Körs från `ready` i db.ts efter den idempotenta
+// Framåtriktad migrationsrunner. Körs från ensureSchema() i db.ts efter den idempotenta
 // bootstrap-strängen. Varje post i MIGRATIONS körs en gång, i ordning, i en
 // transaktion, och registreras i `schema_migrations`.
 //
@@ -14,7 +14,15 @@ const LOCK_KEY = 72701
 let started: Promise<void> | null = null
 
 export function runMigrations(): Promise<void> {
-  if (!started) started = execute()
+  if (!started) {
+    started = execute().catch((err) => {
+      // Nollställ vid övergående fel (tappad anslutning, lås-timeout) så nästa
+      // request kan försöka igen i stället för att cacha felet för instansens
+      // livstid. Ett deterministiskt migrationsfel återkommer ändå direkt.
+      started = null
+      throw err
+    })
+  }
   return started
 }
 

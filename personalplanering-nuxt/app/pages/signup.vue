@@ -25,8 +25,7 @@ async function submit() {
     })
     await navigateTo('/onboarding')
   } catch (err) {
-    const data = (err as { data?: { error?: string } })?.data
-    error.value = data?.error || 'Kunde inte skapa konto.'
+    error.value = errorMessage(err, 'Kunde inte skapa konto.')
   } finally {
     submitting.value = false
   }

@@ -36,7 +36,9 @@ export function setSessionCookie(event: H3Event, token: string) {
   setCookie(event, SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    // Secure i allt utom lokal dev. Förlita dig inte på NODE_ENV – Netlifys
+    // funktionsruntime sätter det inte alltid, och då hade kakan tappat Secure.
+    secure: !import.meta.dev,
     maxAge: SESSION_MAX_AGE_MS / 1000,
     path: '/',
   })

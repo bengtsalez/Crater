@@ -9,15 +9,7 @@ const rawFetch = $fetch as unknown as (
 
 function messageFromError(err: unknown): string {
   const fe = err as FetchError
-  const data = fe?.data as { error?: string; message?: string; data?: { error?: string } } | undefined
-  return (
-    data?.data?.error ||
-    data?.error ||
-    data?.message ||
-    fe?.statusMessage ||
-    fe?.message ||
-    'Ett fel uppstod.'
-  )
+  return errorMessage(err, fe?.statusMessage || fe?.message || 'Ett fel uppstod.')
 }
 
 /**

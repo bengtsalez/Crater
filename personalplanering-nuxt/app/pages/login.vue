@@ -14,8 +14,7 @@ async function submit() {
     })
     await navigateTo('/')
   } catch (err) {
-    const data = (err as { data?: { error?: string } })?.data
-    error.value = data?.error || 'Kunde inte logga in.'
+    error.value = errorMessage(err, 'Kunde inte logga in.')
   } finally {
     submitting.value = false
   }

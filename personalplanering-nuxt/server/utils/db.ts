@@ -16,7 +16,8 @@ const FIRST_PROJECT_NUMBER = 1115
 
 // Schema-bootstrap – identiskt med den gamla appens db.js så att peka mot samma
 // databas fungerar utan migrering.
-export const ready = pool.query(`
+function bootstrapSchema(): Promise<unknown> {
+  return pool.query(`
     CREATE TABLE IF NOT EXISTS resources (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -91,6 +92,24 @@ export const ready = pool.query(`
       created_at TIMESTAMP NOT NULL DEFAULT now()
     );
   `).then(() => runMigrations())
+}
+
+// Memoiserad schema-bootstrap. Vid ett övergående fel (t.ex. tappad anslutning
+// mot serverless-Postgres när funktionsinstansen just startat) NOLLSTÄLLS
+// promisen så att nästa request försöker igen – annars fastnar hela
+// funktionsinstansen i "Server Error" på varje anrop tills den återvinns, och
+// användaren tvingas vänta/rensa och försöka igen för att träffa en ny instans.
+let schemaReady: Promise<unknown> | null = null
+
+export function ensureSchema(): Promise<unknown> {
+  if (!schemaReady) {
+    schemaReady = bootstrapSchema().catch((err) => {
+      schemaReady = null
+      throw err
+    })
+  }
+  return schemaReady
+}
 
 type Queryable = { query: Pool['query'] }
 

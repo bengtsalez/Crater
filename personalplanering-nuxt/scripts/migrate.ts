@@ -1,9 +1,9 @@
-import { pool, ready } from '../server/utils/db'
+import { pool, ensureSchema } from '../server/utils/db'
 
 // Kör schema-bootstrap + alla väntande SQL-migreringar och avsluta.
-// `ready` kedjar runMigrations() efter bootstrap-strängen.
+// ensureSchema() kedjar runMigrations() efter bootstrap-strängen.
 async function main() {
-  await ready
+  await ensureSchema()
   console.log('Migreringar klara.')
 }
 
