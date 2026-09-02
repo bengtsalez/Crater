@@ -119,21 +119,21 @@ async function reactivate(id: number) {
           class="clickable"
           @click="openProjectDetail(p.id)"
         >
-          <td>{{ p.project_number }}</td>
-          <td>{{ p.name }}</td>
-          <td>{{ p.client || '–' }}</td>
-          <td>{{ departmentLabel(p.category) }}</td>
-          <td>{{ p.project_manager_username || '–' }}</td>
-          <td>{{ formatSum(p.sum) }}</td>
-          <td :title="startInfo(p).title">
+          <td data-label="Projektnr">{{ p.project_number }}</td>
+          <td data-label="Namn">{{ p.name }}</td>
+          <td data-label="Kund">{{ p.client || '–' }}</td>
+          <td data-label="Kategori">{{ departmentLabel(p.category) }}</td>
+          <td data-label="Projektledare">{{ p.project_manager_username || '–' }}</td>
+          <td data-label="Summa">{{ formatSum(p.sum) }}</td>
+          <td data-label="Byggstart" :title="startInfo(p).title">
             {{ startInfo(p).text }}<span v-if="startInfo(p).prel" class="hint"> (prel.)</span>
           </td>
-          <td>{{ p.end_date || '–' }}</td>
-          <td>
+          <td data-label="Byggslut">{{ p.end_date || '–' }}</td>
+          <td data-label="Status">
             <span class="badge" :class="p.status">{{ STATUS_LABELS[p.status] || p.status }}</span>
             <span v-if="p.status_override" class="hint" title="Manuellt tvingad status"> (manuell)</span>
           </td>
-          <td>
+          <td data-label="">
             <button class="plain danger" @click.stop="deleteProject(p.id)">Ta bort</button>
           </td>
         </tr>
@@ -158,17 +158,17 @@ async function reactivate(id: number) {
           class="clickable"
           @click="openProjectDetail(p.id)"
         >
-          <td>{{ p.project_number }}</td>
-          <td>{{ p.name }}</td>
-          <td>{{ p.client || '–' }}</td>
-          <td>{{ departmentLabel(p.category) }}</td>
-          <td>{{ p.project_manager_username || '–' }}</td>
-          <td>{{ formatSum(p.sum) }}</td>
-          <td :title="startInfo(p).title">
+          <td data-label="Projektnr">{{ p.project_number }}</td>
+          <td data-label="Namn">{{ p.name }}</td>
+          <td data-label="Kund">{{ p.client || '–' }}</td>
+          <td data-label="Kategori">{{ departmentLabel(p.category) }}</td>
+          <td data-label="Projektledare">{{ p.project_manager_username || '–' }}</td>
+          <td data-label="Summa">{{ formatSum(p.sum) }}</td>
+          <td data-label="Byggstart" :title="startInfo(p).title">
             {{ startInfo(p).text }}<span v-if="startInfo(p).prel" class="hint"> (prel.)</span>
           </td>
-          <td>{{ p.end_date || '–' }}</td>
-          <td>
+          <td data-label="Byggslut">{{ p.end_date || '–' }}</td>
+          <td data-label="">
             <button class="plain ghost" @click.stop="reactivate(p.id)">Återaktivera</button>
             <button class="plain danger" @click.stop="deleteProject(p.id)">Ta bort</button>
           </td>

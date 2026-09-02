@@ -3,6 +3,7 @@ import { effectiveStart } from '~/utils/analytics'
 
 const { unstaffed: modal } = useModals()
 const { assignments } = useAppData()
+const isMobile = useIsMobile()
 
 const open = computed({
   get: () => modal.value.open,
@@ -13,7 +14,7 @@ const open = computed({
 </script>
 
 <template>
-  <UModal v-model:open="open" title="Projekt utan bemanning">
+  <UModal v-model:open="open" :fullscreen="isMobile" title="Projekt utan bemanning">
     <template #body>
       <div class="task-list">
         <div v-if="!modal.projects.length" class="empty-state">

@@ -36,12 +36,12 @@ async function remove(id: number) {
       </thead>
       <tbody>
         <tr v-for="r in employees" :key="r.id" class="clickable" @click="openResourceModal(r)">
-          <td><span class="res-swatch" :style="{ background: colorForResource(r) }" /></td>
-          <td>{{ r.name }}</td>
-          <td>{{ departmentLabel(r.category) }}</td>
-          <td>{{ r.phone || '–' }}</td>
-          <td>{{ r.active ? 'Ja' : 'Nej' }}</td>
-          <td><button class="plain danger" @click.stop="remove(r.id)">Ta bort</button></td>
+          <td data-label="Färg"><span class="res-swatch" :style="{ background: colorForResource(r) }" /></td>
+          <td data-label="Namn">{{ r.name }}</td>
+          <td data-label="Kategori">{{ departmentLabel(r.category) }}</td>
+          <td data-label="Telefon">{{ r.phone || '–' }}</td>
+          <td data-label="Aktiv">{{ r.active ? 'Ja' : 'Nej' }}</td>
+          <td data-label=""><button class="plain danger" @click.stop="remove(r.id)">Ta bort</button></td>
         </tr>
       </tbody>
     </table>
@@ -53,11 +53,11 @@ async function remove(id: number) {
       </thead>
       <tbody>
         <tr v-for="r in subcontractors" :key="r.id" class="clickable" @click="openResourceModal(r)">
-          <td><span class="res-swatch" :style="{ background: colorForResource(r) }" /></td>
-          <td>{{ r.name }}</td>
-          <td>{{ r.phone || '–' }}</td>
-          <td>{{ r.active ? 'Ja' : 'Nej' }}</td>
-          <td><button class="plain danger" @click.stop="remove(r.id)">Ta bort</button></td>
+          <td data-label="Färg"><span class="res-swatch" :style="{ background: colorForResource(r) }" /></td>
+          <td data-label="Namn">{{ r.name }}</td>
+          <td data-label="Telefon">{{ r.phone || '–' }}</td>
+          <td data-label="Aktiv">{{ r.active ? 'Ja' : 'Nej' }}</td>
+          <td data-label=""><button class="plain danger" @click.stop="remove(r.id)">Ta bort</button></td>
         </tr>
       </tbody>
     </table>

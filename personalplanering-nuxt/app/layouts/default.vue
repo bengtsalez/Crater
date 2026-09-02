@@ -53,5 +53,18 @@ async function logout() {
     <main :class="isLogin ? '' : 'app-main'">
       <slot />
     </main>
+
+    <nav v-if="!isLogin" class="bottom-nav">
+      <button
+        v-for="t in tabs"
+        v-show="!t.hidden"
+        :key="t.name"
+        class="bottom-nav-btn"
+        :class="{ active: activeTab === t.name && projectDetailId === null }"
+        @click="selectTab(t.name)"
+      >
+        {{ t.label }}
+      </button>
+    </nav>
   </div>
 </template>

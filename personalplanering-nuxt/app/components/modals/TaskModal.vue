@@ -7,6 +7,7 @@ const { refresh } = useProjectDetail()
 const { projectDetailId } = useUiState()
 const { api } = useApi()
 const toast = useToast()
+const isMobile = useIsMobile()
 
 const open = computed({
   get: () => modal.value.open,
@@ -103,7 +104,7 @@ async function remove() {
 </script>
 
 <template>
-  <UModal v-model:open="open" :title="editing ? 'Redigera uppgift' : 'Ny uppgift'">
+  <UModal v-model:open="open" :fullscreen="isMobile" :title="editing ? 'Redigera uppgift' : 'Ny uppgift'">
     <template #body>
       <form id="task-form" class="pp-form" @submit.prevent="submit">
         <label>Titel *<input v-model="form.title" required></label>

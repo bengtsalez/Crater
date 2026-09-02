@@ -7,6 +7,7 @@ const { resources, loadAll } = useAppData()
 const { options: departmentOptions, keys: departmentKeys } = useDepartments()
 const { api } = useApi()
 const toast = useToast()
+const isMobile = useIsMobile()
 
 const open = computed({
   get: () => modal.value.open,
@@ -104,7 +105,7 @@ async function remove() {
 </script>
 
 <template>
-  <UModal v-model:open="open" :title="editing ? 'Redigera person' : 'Lägg till person'">
+  <UModal v-model:open="open" :fullscreen="isMobile" :title="editing ? 'Redigera person' : 'Lägg till person'">
     <template #body>
       <form id="resource-form" class="pp-form" @submit.prevent="submit">
         <label>Namn *<input v-model="form.name" required></label>

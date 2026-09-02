@@ -5,6 +5,7 @@ const { assignment: modal, openProjectModal } = useModals()
 const { resources, projects, loadAll } = useAppData()
 const { api } = useApi()
 const toast = useToast()
+const isMobile = useIsMobile()
 
 const open = computed({
   get: () => modal.value.open,
@@ -129,7 +130,7 @@ async function remove() {
 </script>
 
 <template>
-  <UModal v-model:open="open" :title="editing ? 'Redigera bokning' : 'Boka personal på projekt'">
+  <UModal v-model:open="open" :fullscreen="isMobile" :title="editing ? 'Redigera bokning' : 'Boka personal på projekt'">
     <template #body>
       <form id="assignment-form" class="pp-form" @submit.prevent="submit">
         <label>Person *

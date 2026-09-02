@@ -3,6 +3,7 @@ const { lineItem: modal } = useModals()
 const { refresh } = useProjectDetail()
 const { api } = useApi()
 const toast = useToast()
+const isMobile = useIsMobile()
 
 const open = computed({
   get: () => modal.value.open,
@@ -88,6 +89,7 @@ async function remove() {
 <template>
   <UModal
     v-model:open="open"
+    :fullscreen="isMobile"
     :title="editing ? `Redigera ${label}` : `Ny ${label}`"
   >
     <template #body>

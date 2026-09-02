@@ -9,6 +9,7 @@ import { taskCountLabel } from '~/utils/format'
 import {
   DOW_LABELS,
   TL_LABEL_WIDTH, TL_DAY_WIDTH, TL_VISIBLE_DAYS,
+  TL_LABEL_WIDTH_COMPACT, TL_DAY_WIDTH_COMPACT,
 } from '~/utils/constants'
 
 const { resources, projects, assignments, tasks, currentUser, loadAll } = useAppData()
@@ -17,6 +18,15 @@ const { goToMyTasksForProject, openProjectDetail } = useUiState()
 const { openAssignmentModal } = useModals()
 const { api } = useApi()
 const toast = useToast()
+
+const isMobile = useIsMobile()
+// Mobil öppnar i listvy, desktop i Gantt. Följer brytpunkten om skärmen ändras.
+const view = ref<'list' | 'gantt'>(isMobile.value ? 'list' : 'gantt')
+watch(isMobile, (m) => { view.value = m ? 'list' : 'gantt' })
+
+// Kompakta kolumnmått när Gantt visas på liten skärm.
+const tlLabelWidth = computed(() => (isMobile.value ? TL_LABEL_WIDTH_COMPACT : TL_LABEL_WIDTH))
+const tlDayWidth = computed(() => (isMobile.value ? TL_DAY_WIDTH_COMPACT : TL_DAY_WIDTH))
 
 const tlStart = ref(mondayOf(new Date()))
 const filterType = ref('')
@@ -77,7 +87,50 @@ const unplannedProjects = computed(() =>
 )
 
 const gridCols = computed(
-  () => `${TL_LABEL_WIDTH}px repeat(${days.value.length}, ${TL_DAY_WIDTH}px)`
+  () => `${tlLabelWidth.value}px repeat(${days.value.length}, ${tlDayWidth.value}px)`
+)
+
+// ---------- Mobil listvy ----------
+
+const listGroups = computed(() => {
+  const groups = employeeGroups.value
+    .filter((g) => g.resources.length)
+    .map((g) => ({ label: g.label, resources: g.resources }))
+  if (subcontractors.value.length) {
+    groups.push({ label: 'Underentreprenörer', resources: subcontractors.value })
+  }
+  return groups
+})
+
+const projectMap = computed(() => new Map(projects.value.map((p) => [p.id, p])))
+
+const bookingsByResource = computed(() => {
+  const map = new Map<number, typeof assignments.value>()
+  for (const a of assignments.value) {
+    if (a.start_date > rangeEndISO.value || a.end_date < rangeStartISO.value) continue
+    if (!matchesProjectSearch(a.project_number)) continue
+    if (!map.has(a.resource_id)) map.set(a.resource_id, [])
+    map.get(a.resource_id)!.push(a)
+  }
+  for (const list of map.values()) list.sort((a, b) => a.start_date.localeCompare(b.start_date))
+  return map
+})
+
+function bookingsFor(resourceId: number) {
+  return bookingsByResource.value.get(resourceId) ?? []
+}
+
+const listStarts = computed(() =>
+  projects.value
+    .filter(
+      (p) =>
+        p.status !== 'avslutad' &&
+        p.start_date &&
+        p.start_date >= rangeStartISO.value &&
+        p.start_date <= rangeEndISO.value &&
+        matchesProjectSearch(p.project_number)
+    )
+    .sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''))
 )
 
 const weekHeaderCells = computed(() => {
@@ -142,6 +195,9 @@ function computeOverlay() {
   const gridEl = gridRef.value
   if (!gridEl) return
 
+  const LBL = tlLabelWidth.value
+  const DAY = tlDayWidth.value
+
   const dayHeaderEl = gridEl.querySelector<HTMLElement>('.tl-day-header')
   const baselineTop = dayHeaderEl ? dayHeaderEl.offsetTop + dayHeaderEl.offsetHeight : 0
   const categoryMarkerTop = (category: string | null) => {
@@ -163,7 +219,7 @@ function computeOverlay() {
     .map((p): OverlayMarker | null => {
       const dayIndex = days.value.findIndex((d) => toISO(d) === p.start_date)
       if (dayIndex === -1) return null
-      const left = TL_LABEL_WIDTH + dayIndex * TL_DAY_WIDTH
+      const left = LBL + dayIndex * DAY
       const top = categoryMarkerTop(p.category)
       const count = p.status === 'planerad' ? myOpenTaskCountForProject(p.id) : 0
       const tip = [
@@ -213,8 +269,8 @@ function computeOverlay() {
         }
       }
       if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) continue
-      const left = TL_LABEL_WIDTH + startIdx * TL_DAY_WIDTH + 1
-      const width = (endIdx - startIdx + 1) * TL_DAY_WIDTH - 2
+      const left = LBL + startIdx * DAY + 1
+      const width = (endIdx - startIdx + 1) * DAY - 2
       const project = projects.value.find((p) => p.id === a.project_id)
       out.push({
         key: `b-${a.id}`,
@@ -243,6 +299,8 @@ const overlayDeps = computed(() => [
   projects.value,
   assignments.value,
   tasks.value,
+  view.value,
+  tlDayWidth.value,
 ])
 
 watch(
@@ -328,7 +386,7 @@ function startBarDrag(e: PointerEvent, assignmentId: number) {
     if (!moved) return
     dragSuppressClick = true
 
-    const deltaCols = Math.round((ev.clientX - startX) / TL_DAY_WIDTH)
+    const deltaCols = Math.round((ev.clientX - startX) / tlDayWidth.value)
     if (deltaCols === 0) return
 
     const foundIdx = days.value.findIndex((d) => toISO(d) >= assignment.start_date)
@@ -374,8 +432,9 @@ function startBarResize(e: PointerEvent, assignmentId: number, edge: 'start' | '
 
   const startX = e.clientX
   const initLeft = parseFloat(barEl.style.left) || 0
-  const initWidth = parseFloat(barEl.style.width) || TL_DAY_WIDTH
-  const minW = TL_DAY_WIDTH - 2
+  const dayWidth = tlDayWidth.value
+  const initWidth = parseFloat(barEl.style.width) || dayWidth
+  const minW = dayWidth - 2
   let deltaCols = 0
   let moved = false
   try {
@@ -392,8 +451,8 @@ function startBarResize(e: PointerEvent, assignmentId: number, edge: 'start' | '
   const onMove = (ev: PointerEvent) => {
     const dx = ev.clientX - startX
     if (!moved && Math.abs(dx) > 3) moved = true
-    deltaCols = Math.round(dx / TL_DAY_WIDTH)
-    let snap = deltaCols * TL_DAY_WIDTH
+    deltaCols = Math.round(dx / dayWidth)
+    let snap = deltaCols * dayWidth
     if (edge === 'start') {
       if (initWidth - snap < minW) snap = initWidth - minW
       barEl.style.left = `${initLeft + snap}px`
@@ -511,10 +570,96 @@ function hideTip() {
       <label class="filter-label checkbox-label">
         <input v-model="showHolidays" type="checkbox"> Visa helgdagar
       </label>
+      <button
+        v-if="isMobile"
+        class="plain tl-view-toggle"
+        @click="view = view === 'list' ? 'gantt' : 'list'"
+      >
+        {{ view === 'list' ? 'Visa tidslinje' : 'Visa lista' }}
+      </button>
       <button class="plain primary" @click="openAssignmentModal({})">+ Boka personal på projekt</button>
     </div>
 
-    <div class="timeline-layout">
+    <!-- Mobil listvy -->
+    <div v-if="view === 'list'" class="tl-list">
+      <template v-for="g in listGroups" :key="g.label">
+        <h3 class="tl-list-group-title">{{ g.label }}</h3>
+        <div v-for="r in g.resources" :key="`lr-${r.id}`" class="tl-list-person">
+          <div class="tl-list-person-head">
+            <span
+              class="tl-list-booking-swatch"
+              style="width: 12px; height: 12px"
+              :style="{ background: colorForResource(r) }"
+            />
+            {{ r.name }}
+          </div>
+          <button
+            v-for="a in bookingsFor(r.id)"
+            :key="`lb-${a.id}`"
+            type="button"
+            class="tl-list-booking"
+            :class="{ 'tl-past': isProjectPast(projectMap.get(a.project_id)) }"
+            @click="openAssignmentModal({ assignment: a })"
+          >
+            <span
+              class="tl-list-booking-swatch"
+              :style="{ background: shadeForProject(colorForResource(r), a.project_id) }"
+            />
+            <span class="tl-list-booking-main">
+              <span class="tl-list-booking-name">{{ a.project_number }} – {{ a.project_name }}</span>
+              <span class="tl-list-booking-dates">{{ a.start_date }} – {{ a.end_date }}</span>
+            </span>
+          </button>
+          <div v-if="!bookingsFor(r.id).length" class="tl-list-empty">Inga bokningar denna period.</div>
+          <button type="button" class="tl-list-add" @click="openAssignmentModal({ resourceId: r.id })">
+            + Boka på projekt
+          </button>
+        </div>
+      </template>
+
+      <template v-if="listStarts.length">
+        <h3 class="tl-list-group-title">Projekt som startar denna period</h3>
+        <div class="tl-list-starts">
+          <button
+            v-for="p in listStarts"
+            :key="`ls-${p.id}`"
+            type="button"
+            class="tl-list-start"
+            @click="openProjectDetail(p.id)"
+          >
+            <span
+              v-if="myOpenTaskCountForProject(p.id) > 0"
+              class="badge planerad"
+              @click.stop="goToMyTasksForProject(p.id)"
+            >{{ taskCountLabel(myOpenTaskCountForProject(p.id)) }}</span>
+            <span>{{ p.project_number }} – {{ p.name }} · {{ p.start_date }}</span>
+          </button>
+        </div>
+      </template>
+
+      <aside class="tl-unplanned">
+        <h3 class="tl-unplanned-title">Ej inplanerade projekt</h3>
+        <p v-if="!unplannedProjects.length" class="tl-unplanned-empty">
+          Inga aktiva projekt att planera in.
+        </p>
+        <ul v-else class="tl-unplanned-list">
+          <li
+            v-for="p in unplannedProjects"
+            :key="`lu-${p.id}`"
+            class="tl-unplanned-item"
+            @click="openProjectDetail(p.id)"
+          >
+            <span class="tl-unplanned-name">{{ p.project_number }} – {{ p.name }}</span>
+            <span class="tl-unplanned-meta">
+              <span v-if="p.client">{{ p.client }}</span>
+              <span v-if="p.start_date">Prel. start {{ p.start_date }}</span>
+            </span>
+          </li>
+        </ul>
+      </aside>
+    </div>
+
+    <div v-show="view === 'gantt'" class="timeline-layout">
       <div ref="wrapRef" class="timeline-wrap" @pointerdown="startRulerPan">
       <div class="timeline-inner">
         <div

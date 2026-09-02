@@ -15,6 +15,10 @@ export const TL_LABEL_WIDTH = 180
 export const TL_DAY_WIDTH = 36
 export const TL_VISIBLE_DAYS = 56
 
+// Kompakta mått för Gantt-läget på små skärmar (se useIsMobile / TheTimeline).
+export const TL_LABEL_WIDTH_COMPACT = 104
+export const TL_DAY_WIDTH_COMPACT = 28
+
 // Översikt/analytics: fönster (dagar framåt från idag) för respektive KPI.
 export const ANALYTICS_UPCOMING_WINDOW_DAYS = 30
 export const ANALYTICS_UNSTAFFED_LEAD_DAYS = 7

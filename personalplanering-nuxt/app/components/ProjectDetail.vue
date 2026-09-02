@@ -122,10 +122,10 @@ async function deleteTask(t: Task) {
       <tbody>
         <tr v-if="!ata.length"><td colspan="4" class="empty-state">Inga rader ännu.</td></tr>
         <tr v-for="li in ata" :key="li.id" class="clickable" @click="openLineItemModal('ata', li, project.id)">
-          <td>{{ li.description }}</td>
-          <td>{{ li.date || '–' }}</td>
-          <td>{{ formatSum(li.amount) }}</td>
-          <td><button class="plain danger" @click.stop="deleteLineItem(li)">Ta bort</button></td>
+          <td data-label="Beskrivning">{{ li.description }}</td>
+          <td data-label="Datum">{{ li.date || '–' }}</td>
+          <td data-label="Belopp">{{ formatSum(li.amount) }}</td>
+          <td data-label=""><button class="plain danger" @click.stop="deleteLineItem(li)">Ta bort</button></td>
         </tr>
       </tbody>
     </table>
@@ -140,10 +140,10 @@ async function deleteTask(t: Task) {
       <tbody>
         <tr v-if="!expenses.length"><td colspan="4" class="empty-state">Inga rader ännu.</td></tr>
         <tr v-for="li in expenses" :key="li.id" class="clickable" @click="openLineItemModal('utgift', li, project.id)">
-          <td>{{ li.description }}</td>
-          <td>{{ li.date || '–' }}</td>
-          <td>{{ formatSum(li.amount) }}</td>
-          <td><button class="plain danger" @click.stop="deleteLineItem(li)">Ta bort</button></td>
+          <td data-label="Beskrivning">{{ li.description }}</td>
+          <td data-label="Datum">{{ li.date || '–' }}</td>
+          <td data-label="Belopp">{{ formatSum(li.amount) }}</td>
+          <td data-label=""><button class="plain danger" @click.stop="deleteLineItem(li)">Ta bort</button></td>
         </tr>
       </tbody>
     </table>
@@ -154,10 +154,10 @@ async function deleteTask(t: Task) {
       <tbody>
         <tr v-if="!staff.length"><td colspan="4" class="empty-state">Ingen personal inplanerad ännu.</td></tr>
         <tr v-for="a in staff" :key="a.id">
-          <td>{{ a.resource_name }}</td>
-          <td>{{ a.resource_type === 'anstalld' ? 'Anställd' : 'Underentreprenör' }}</td>
-          <td>{{ a.start_date }}</td>
-          <td>{{ a.end_date }}</td>
+          <td data-label="Namn">{{ a.resource_name }}</td>
+          <td data-label="Typ">{{ a.resource_type === 'anstalld' ? 'Anställd' : 'Underentreprenör' }}</td>
+          <td data-label="Från">{{ a.start_date }}</td>
+          <td data-label="Till">{{ a.end_date }}</td>
         </tr>
       </tbody>
     </table>

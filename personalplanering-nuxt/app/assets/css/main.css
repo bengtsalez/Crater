@@ -306,7 +306,15 @@ button.plain.danger:hover { background: #fee2e2; }
   color: var(--text-muted);
 }
 @media (max-width: 900px) {
-  .timeline-layout { flex-direction: column; }
+  /* Stapla tidslinje + sidolista och håll den horisontella scrollen inne i
+     wrappen så att sidan aldrig scrollar i sidled. */
+  .timeline-layout {
+    flex-direction: column;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .timeline-layout .timeline-wrap { width: 100%; max-width: 100%; flex: none; }
   .tl-unplanned { flex-basis: auto; width: 100%; max-height: none; }
 }
 .tl-start-marker {
@@ -583,3 +591,233 @@ button.plain.danger:hover { background: #fee2e2; }
 .ob-summary strong { font-size: 18px; color: var(--text); margin-right: 4px; }
 
 .ob-nav { display: flex; align-items: center; gap: 8px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+/* ============================================================
+   Tidslinje – mobil listvy (renderas endast på små skärmar,
+   men hålls responsiv oavsett).
+   ============================================================ */
+.tl-list { display: flex; flex-direction: column; gap: 14px; }
+.tl-list-group-title {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+.tl-list-person {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.tl-list-person-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-list-booking {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+}
+.tl-list-booking:last-child { border-bottom: none; }
+.tl-list-booking:active { background: var(--bg); }
+.tl-list-booking.tl-past { opacity: 0.45; }
+.tl-list-booking-swatch { width: 10px; height: 34px; border-radius: 3px; flex: none; }
+.tl-list-booking-main { min-width: 0; flex: 1; }
+.tl-list-booking-name { display: block; font-weight: 500; overflow-wrap: anywhere; }
+.tl-list-booking-dates { display: block; font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+.tl-list-add {
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  color: var(--primary);
+  cursor: pointer;
+}
+.tl-list-add:active { background: var(--bg); }
+.tl-list-empty { padding: 10px 12px; font-size: 13px; color: var(--text-muted); }
+.tl-list-starts {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 0;
+}
+.tl-list-start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+}
+.tl-list-start:active { background: var(--bg); }
+.tl-list-start .badge { flex: none; white-space: nowrap; }
+
+.tl-view-toggle { margin-left: auto; }
+
+/* Bottennav visas bara på mobil (media-frågan nedan sätter display: flex) */
+.bottom-nav { display: none; }
+
+/* ============================================================
+   Mobil – allt nedan gäller endast smala skärmar. Desktop är
+   oförändrat (default). Primär brytpunkt 767px.
+   ============================================================ */
+@media (max-width: 767px) {
+  html, body { overflow-x: hidden; }
+
+  .app-main { padding: 12px 12px 76px; }
+
+  /* Topbar krymper till titel + logga ut; flikarna flyttar till bottennav */
+  .topbar { gap: 12px; padding: 10px 14px; }
+  .topbar h1 { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
+  .topbar .tabs { display: none; }
+
+  /* Tryckytor */
+  button.plain { min-height: 40px; }
+  input, select, textarea { font-size: 16px; }
+
+  /* Toolbars – stapla kontrollerna, navknappar delar rad */
+  .toolbar { gap: 8px; }
+  .toolbar > .spacer { display: none; }
+  .toolbar > button { flex: 1 1 auto; width: auto; min-width: 0; }
+  .toolbar > button.primary,
+  .toolbar > .tl-view-toggle { flex-basis: 100%; }
+  .toolbar > input,
+  .toolbar > select,
+  .toolbar > .filter-label { flex-basis: 100%; width: 100%; }
+  .toolbar > .filter-label { flex-direction: column; align-items: stretch; gap: 3px; }
+  .toolbar > .filter-label.checkbox-label { flex-direction: row; align-items: center; gap: 6px; }
+  .toolbar > .filter-label.checkbox-label input { width: auto; flex: none; }
+  .toolbar > .filter-label > select,
+  .toolbar > .filter-label > input { width: 100%; }
+  .toolbar > .range-label { flex-basis: 100%; order: -1; min-width: 0; text-align: center; font-size: 15px; }
+
+  /* Statistikkort: 2 kolumner istället för 4 flexande */
+  .ms-overview { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ms-stat { min-width: 0; padding: 12px 14px; }
+  .ms-stat-value { font-size: 20px; }
+
+  /* Breda tabeller → kort med etikett/värde-par */
+  .data-table,
+  .data-table thead,
+  .data-table tbody,
+  .data-table tr,
+  .data-table th,
+  .data-table td { display: block; }
+  .data-table { box-shadow: none; background: transparent; border-radius: 0; }
+  .data-table thead { display: none; }
+  .data-table tr {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    padding: 4px 12px;
+    background: var(--panel);
+  }
+  .data-table tr.clickable:active { background: #f9fafb; }
+  .data-table td {
+    border: none;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 8px 0;
+    font-size: 14px;
+  }
+  .data-table tr td:last-child { border-bottom: none; }
+  .data-table td::before {
+    content: attr(data-label);
+    flex: none;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .data-table td[data-label=""]::before { display: none; }
+  .data-table td[data-label=""] { justify-content: flex-end; padding-top: 10px; }
+  .data-table td[data-label=""] .plain { width: 100%; }
+  .data-table td:empty { display: none; }
+
+  /* Forms i modaler */
+  .pp-form .row-2 { flex-direction: column; gap: 10px; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal-actions .spacer { display: none; }
+  .modal-actions .plain.primary,
+  .modal-actions .plain.danger { flex: 1; }
+
+  /* Uppgiftsrader – stapla text och åtgärder */
+  .task-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .task-actions { width: 100%; }
+  .task-actions .plain { flex: 1; }
+
+  /* Projektdetalj */
+  .pd-title { font-size: 17px; }
+
+  /* Månadskalender – kompakt, prickar istället för text */
+  .month-grid { gap: 3px; }
+  .month-day { min-height: 46px; padding: 3px; font-size: 11px; }
+  .month-day .chip {
+    text-indent: -9999px;
+    overflow: hidden;
+    height: 5px;
+    padding: 0;
+    margin-bottom: 2px;
+    border-radius: 3px;
+  }
+  .month-dow { font-size: 10px; }
+
+  /* Login / signup */
+  .login-card { padding: 24px 20px; }
+  .ob-card { padding: 20px 16px; }
+  .ob-list-row { flex-wrap: wrap; }
+  .ob-list-row .ob-grow { flex-basis: 100%; order: -1; }
+  .ob-add-row { flex-wrap: wrap; }
+  .ob-add-row input { flex-basis: 100%; }
+  .ob-nav { flex-wrap: wrap; }
+
+  /* Bottennavigering */
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .bottom-nav-btn {
+    flex: 1;
+    min-height: 52px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.2;
+    padding: 6px 2px;
+    cursor: pointer;
+  }
+  .bottom-nav-btn.active { color: var(--primary); font-weight: 600; }
+}
