@@ -26,9 +26,11 @@ interface LineItemModalState {
   item: LineItem | null
   projectId: number | null
 }
-interface UnstaffedModalState {
+interface ProjectListModalState {
   open: boolean
+  title: string
   projects: Project[]
+  showSum: boolean
 }
 
 export function useModals() {
@@ -55,7 +57,12 @@ export function useModals() {
     item: null,
     projectId: null,
   }))
-  const unstaffed = useState<UnstaffedModalState>('modal:unstaffed', () => ({ open: false, projects: [] }))
+  const projectList = useState<ProjectListModalState>('modal:projectList', () => ({
+    open: false,
+    title: '',
+    projects: [],
+    showSum: false,
+  }))
 
   function openProjectModal(p: Project | null, opts: { onCreated?: (p: Project) => void } = {}) {
     project.value = { open: true, project: p, onCreated: opts.onCreated || null }
@@ -79,8 +86,13 @@ export function useModals() {
   function openLineItemModal(type: 'ata' | 'utgift', item: LineItem | null, projectId: number | null) {
     lineItem.value = { open: true, type, item, projectId }
   }
-  function openUnstaffedModal(projects: Project[]) {
-    unstaffed.value = { open: true, projects }
+  function openProjectListModal(opts: { title: string; projects: Project[]; showSum?: boolean }) {
+    projectList.value = {
+      open: true,
+      title: opts.title,
+      projects: opts.projects,
+      showSum: opts.showSum ?? false,
+    }
   }
 
   return {
@@ -89,12 +101,12 @@ export function useModals() {
     assignment,
     task,
     lineItem,
-    unstaffed,
+    projectList,
     openProjectModal,
     openResourceModal,
     openAssignmentModal,
     openTaskModal,
     openLineItemModal,
-    openUnstaffedModal,
+    openProjectListModal,
   }
 }

@@ -5,6 +5,7 @@ const { project: modal } = useModals()
 const { users, loadAll } = useAppData()
 const { options: departmentOptions } = useDepartments()
 const { api } = useApi()
+const { remove: removeProject } = useProjectActions()
 const toast = useToast()
 const isMobile = useIsMobile()
 
@@ -110,17 +111,10 @@ async function submit() {
 
 async function remove() {
   if (!form.id || deleting.value) return
-  if (!confirm('Ta bort projektet?')) return
   deleting.value = true
-  try {
-    await api('DELETE', `/api/projects/${form.id}`)
-    open.value = false
-    await loadAll()
-  } catch (err) {
-    toast.add({ title: (err as Error).message, color: 'error' })
-  } finally {
-    deleting.value = false
-  }
+  const ok = await removeProject({ id: Number(form.id), project_number: form.project_number })
+  deleting.value = false
+  if (ok) open.value = false
 }
 </script>
 

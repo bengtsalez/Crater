@@ -1,29 +1,88 @@
 <script setup lang="ts">
 import {
   filterProjectsByDepartment,
-  getUpcomingScheduledValue,
-  getFutureSignedValue,
-  getActiveProjectsToday,
+  getUpcomingScheduledProjects,
+  getFutureSignedProjects,
+  getDelayedStartProjects,
+  getActiveTodayProjects,
   getUnstaffedUpcomingProjects,
+  projectValueSum,
 } from '~/utils/analytics'
+import { ANALYTICS_UNSTAFFED_LEAD_DAYS, ANALYTICS_UPCOMING_WINDOW_DAYS } from '~/utils/constants'
 import { formatSum } from '~/utils/format'
+import type { Project } from '~/types'
 
 const { projects, assignments } = useAppData()
 const { options: departmentOptions } = useDepartments()
-const { openUnstaffedModal } = useModals()
+const { openProjectListModal } = useModals()
+const today = useToday()
 
 const department = ref('')
-
 const filtered = computed(() => filterProjectsByDepartment(projects.value, department.value))
 
-const today = new Date()
-const scheduled = computed(() => getUpcomingScheduledValue(assignments.value, filtered.value, today))
-const signed = computed(() => getFutureSignedValue(assignments.value, filtered.value))
-const active = computed(() => getActiveProjectsToday(assignments.value, filtered.value, today))
-const unstaffed = computed(() => getUnstaffedUpcomingProjects(assignments.value, filtered.value, today))
+interface Card {
+  key: string
+  label: string
+  display: string
+  projects: Project[]
+  showSum: boolean
+  warn?: boolean
+}
 
-function openDrilldown() {
-  openUnstaffedModal(unstaffed.value)
+const cards = computed<Card[]>(() => {
+  const a = assignments.value
+  const p = filtered.value
+  const t = today.value
+
+  const scheduled = getUpcomingScheduledProjects(a, p, t)
+  const signed = getFutureSignedProjects(a, p, t)
+  const delayed = getDelayedStartProjects(a, p, t)
+  const active = getActiveTodayProjects(a, p, t)
+  const unstaffed = getUnstaffedUpcomingProjects(a, p, t)
+
+  return [
+    {
+      key: 'scheduled',
+      label: `Produktion ${ANALYTICS_UPCOMING_WINDOW_DAYS} dagar`,
+      display: formatSum(projectValueSum(scheduled)),
+      projects: scheduled,
+      showSum: true,
+    },
+    {
+      key: 'signed',
+      label: 'Signerat framåt',
+      display: formatSum(projectValueSum(signed)),
+      projects: signed,
+      showSum: true,
+    },
+    {
+      key: 'delayed',
+      label: 'Försenad start · ej inplanerat',
+      display: `${delayed.length} projekt`,
+      projects: delayed,
+      showSum: true,
+      warn: delayed.length > 0,
+    },
+    {
+      key: 'active',
+      label: 'Pågående idag',
+      display: `${active.length} projekt`,
+      projects: active,
+      showSum: false,
+    },
+    {
+      key: 'unstaffed',
+      label: `Saknar bemanning · ${ANALYTICS_UNSTAFFED_LEAD_DAYS} dagar`,
+      display: `${unstaffed.length} projekt`,
+      projects: unstaffed,
+      showSum: false,
+      warn: unstaffed.length > 0,
+    },
+  ]
+})
+
+function openCard(card: Card) {
+  openProjectListModal({ title: card.label, projects: card.projects, showSum: card.showSum })
 }
 </script>
 
@@ -38,29 +97,19 @@ function openDrilldown() {
       </label>
     </div>
     <div class="ms-overview">
-      <div class="ms-stat">
-        <div class="ms-stat-value">{{ formatSum(scheduled) }}</div>
-        <div class="ms-stat-label">Inplanerat 30 dagar</div>
-      </div>
-      <div class="ms-stat">
-        <div class="ms-stat-value">{{ formatSum(signed) }}</div>
-        <div class="ms-stat-label">Signerat framåt</div>
-      </div>
-      <div class="ms-stat">
-        <div class="ms-stat-value">{{ active }} projekt</div>
-        <div class="ms-stat-label">Pågående idag</div>
-      </div>
       <div
+        v-for="card in cards"
+        :key="card.key"
         class="ms-stat clickable"
-        :class="{ 'ms-stat-warning': unstaffed.length > 0 }"
+        :class="{ 'ms-stat-warning': card.warn }"
         role="button"
         tabindex="0"
-        @click="openDrilldown"
-        @keydown.enter.prevent="openDrilldown"
-        @keydown.space.prevent="openDrilldown"
+        @click="openCard(card)"
+        @keydown.enter.prevent="openCard(card)"
+        @keydown.space.prevent="openCard(card)"
       >
-        <div class="ms-stat-value">{{ unstaffed.length }} projekt</div>
-        <div class="ms-stat-label">Saknar bemanning</div>
+        <div class="ms-stat-value">{{ card.display }}</div>
+        <div class="ms-stat-label">{{ card.label }}</div>
       </div>
     </div>
   </section>

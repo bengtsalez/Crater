@@ -4,5 +4,5 @@
   <ModalsAssignmentModal />
   <ModalsTaskModal />
   <ModalsLineItemModal />
-  <ModalsUnstaffedModal />
+  <ModalsProjectListModal />
 </template>

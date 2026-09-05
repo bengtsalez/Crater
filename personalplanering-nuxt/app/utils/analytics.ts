@@ -34,15 +34,51 @@ export function activeProjectsForSelect(projects: Project[], currentId: number |
   return projects.filter((p) => p.status !== 'avslutad' || p.id === currentId)
 }
 
+// ---------- Bemanningsstatus ----------
+//
+// Skilj tydligt mellan historisk, aktuell och framtida bemanning. "Har projektet
+// någon assignment?" är inte samma sak som "är projektet bemannat framåt?".
+
+// Datumlös: har projektet någonsin haft en bokning?
+export function projectHasAnyAssignment(assignments: Assignment[], projectId: number): boolean {
+  return assignments.some((a) => a.project_id === projectId)
+}
+
+// Minst en bokning som överlappar [fromISO, toISO].
+export function projectHasAssignmentInWindow(
+  assignments: Assignment[],
+  projectId: number,
+  fromISO: string,
+  untilISO: string
+): boolean {
+  return assignments.some(
+    (a) => a.project_id === projectId && a.start_date <= untilISO && a.end_date >= fromISO
+  )
+}
+
+// Minst en bokning som pågår idag.
+export function projectHasActiveAssignment(assignments: Assignment[], projectId: number, today: Date): boolean {
+  const t = toISO(today)
+  return projectHasAssignmentInWindow(assignments, projectId, t, t)
+}
+
+// Minst en bokning vars slutdatum är idag eller senare (bemannad nu eller framåt).
+export function projectHasCurrentOrFutureAssignment(
+  assignments: Assignment[],
+  projectId: number,
+  today: Date
+): boolean {
+  const t = toISO(today)
+  return assignments.some((a) => a.project_id === projectId && a.end_date >= t)
+}
+
 // ---------- Översikt/analytics-beräkningar ----------
 
 export function filterProjectsByDepartment(projects: Project[], dept: string): Project[] {
   return dept ? projects.filter((p) => p.category === dept) : projects
 }
 
-export function projectHasStaff(assignments: Assignment[], projectId: number): boolean {
-  return assignments.some((a) => a.project_id === projectId)
-}
+const notDone = (p: Project) => p.status !== 'avslutad'
 
 // Projekt vars effektiva start ligger i [today, today+days].
 export function projectsStartingWithin(
@@ -59,51 +95,74 @@ export function projectsStartingWithin(
   })
 }
 
-// project_id-Set för ej avslutade projekt med minst en assignment som överlappar [fromISO, toISO].
-function projectIdsWithAssignmentInWindow(
+export function projectValueSum(projects: Project[]): number {
+  return projects.reduce((sum, p) => sum + (p.sum || 0), 0)
+}
+
+// KPI 1 ("Produktion 30 dagar"): ej avslutade projekt med minst en bokning som
+// överlappar [idag, idag+N dagar]. Hela projektvärdet räknas en gång.
+export function getUpcomingScheduledProjects(
   assignments: Assignment[],
   projects: Project[],
-  fromISO: string,
-  toISO: string
-): Set<number> {
-  const eligible = new Set(projects.filter((p) => p.status !== 'avslutad').map((p) => p.id))
-  const ids = new Set<number>()
-  for (const a of assignments) {
-    if (eligible.has(a.project_id) && a.start_date <= toISO && a.end_date >= fromISO) {
-      ids.add(a.project_id)
-    }
-  }
-  return ids
-}
-
-// KPI 1: hela projektsumman för ej avslutade projekt som har minst en assignment
-// som överlappar [idag, idag+N dagar].
-export function getUpcomingScheduledValue(assignments: Assignment[], projects: Project[], today: Date): number {
+  today: Date
+): Project[] {
   const from = toISO(today)
   const to = toISO(addDays(today, ANALYTICS_UPCOMING_WINDOW_DAYS))
-  const ids = projectIdsWithAssignmentInWindow(assignments, projects, from, to)
-  const byId = new Map(projects.map((p) => [p.id, p]))
-  return [...ids].reduce((sum, id) => sum + (byId.get(id)?.sum || 0), 0)
+  return projects.filter((p) => notDone(p) && projectHasAssignmentInWindow(assignments, p.id, from, to))
 }
 
-// KPI 2: framtida orderstock = summan för ej avslutade projekt som saknar bokad personal.
-export function getFutureSignedValue(assignments: Assignment[], projects: Project[]): number {
-  return projects
-    .filter((p) => p.status !== 'avslutad' && !projectHasStaff(assignments, p.id))
-    .reduce((sum, p) => sum + (p.sum || 0), 0)
-}
-
-// KPI 3: antal unika ej avslutade projekt med minst en assignment som pågår idag.
-export function getActiveProjectsToday(assignments: Assignment[], projects: Project[], today: Date): number {
+// KPI 2 ("Signerat framåt"): framtida orderstock = ej avslutade projekt utan
+// nuvarande/framtida bemanning vars effektiva start ligger idag eller senare.
+export function getFutureSignedProjects(
+  assignments: Assignment[],
+  projects: Project[],
+  today: Date
+): Project[] {
   const t = toISO(today)
-  return projectIdsWithAssignmentInWindow(assignments, projects, t, t).size
+  return projects.filter((p) => {
+    if (!notDone(p) || projectHasCurrentOrFutureAssignment(assignments, p.id, today)) return false
+    // Okänt startdatum = ännu ej planerat → räknas som framtida orderstock.
+    const start = effectiveStart(assignments, p).date
+    return !start || start >= t
+  })
 }
 
-// KPI 4: ej avslutade projekt som startar inom bemanningsfönstret och saknar bokad personal.
-export function getUnstaffedUpcomingProjects(assignments: Assignment[], projects: Project[], today: Date): Project[] {
+// KPI ("Försenad start"): ej avslutade, obemannade projekt vars effektiva start
+// redan passerat – borde varit inplanerade.
+export function getDelayedStartProjects(
+  assignments: Assignment[],
+  projects: Project[],
+  today: Date
+): Project[] {
+  const t = toISO(today)
+  return projects.filter((p) => {
+    if (!notDone(p) || projectHasCurrentOrFutureAssignment(assignments, p.id, today)) return false
+    const start = effectiveStart(assignments, p).date
+    return !!start && start < t
+  })
+}
+
+// KPI 3 ("Pågående idag"): ej avslutade projekt med minst en bokning som pågår idag.
+export function getActiveTodayProjects(
+  assignments: Assignment[],
+  projects: Project[],
+  today: Date
+): Project[] {
+  return projects.filter((p) => notDone(p) && projectHasActiveAssignment(assignments, p.id, today))
+}
+
+// KPI 4 ("Saknar bemanning"): ej avslutade projekt som startar inom
+// bemanningsfönstret och saknar nuvarande/framtida bemanning.
+export function getUnstaffedUpcomingProjects(
+  assignments: Assignment[],
+  projects: Project[],
+  today: Date
+): Project[] {
   return projectsStartingWithin(
     assignments,
-    projects.filter((p) => p.status !== 'avslutad' && !projectHasStaff(assignments, p.id)),
+    projects.filter(
+      (p) => notDone(p) && !projectHasCurrentOrFutureAssignment(assignments, p.id, today)
+    ),
     today,
     ANALYTICS_UNSTAFFED_LEAD_DAYS
   ).sort((a, b) =>
@@ -111,17 +170,32 @@ export function getUnstaffedUpcomingProjects(assignments: Assignment[], projects
   )
 }
 
+// Aggregatvärden – härleds ur respektive projektlista.
+export function getUpcomingScheduledValue(assignments: Assignment[], projects: Project[], today: Date): number {
+  return projectValueSum(getUpcomingScheduledProjects(assignments, projects, today))
+}
+export function getFutureSignedValue(assignments: Assignment[], projects: Project[], today: Date): number {
+  return projectValueSum(getFutureSignedProjects(assignments, projects, today))
+}
+export function getActiveProjectsToday(assignments: Assignment[], projects: Project[], today: Date): number {
+  return getActiveTodayProjects(assignments, projects, today).length
+}
+
+// Naturlig sortering (så att "26-9" < "26-10" < "26-100").
+const collator = new Intl.Collator('sv', { numeric: true, sensitivity: 'base' })
+
 // Sortjämförelse för projektlistan.
 export function compareProjects(assignments: Assignment[], a: Project, b: Project, field: string): number {
   if (field === 'sum') {
     return (a.sum ?? -Infinity) - (b.sum ?? -Infinity)
   }
   if (field === 'start_date') {
-    return String(effectiveStart(assignments, a).date ?? '').localeCompare(
+    return collator.compare(
+      String(effectiveStart(assignments, a).date ?? ''),
       String(effectiveStart(assignments, b).date ?? '')
     )
   }
-  const av = String((a as unknown as Record<string, unknown>)[field] ?? '').toLowerCase()
-  const bv = String((b as unknown as Record<string, unknown>)[field] ?? '').toLowerCase()
-  return av.localeCompare(bv)
+  const av = String((a as unknown as Record<string, unknown>)[field] ?? '')
+  const bv = String((b as unknown as Record<string, unknown>)[field] ?? '')
+  return collator.compare(av, bv)
 }

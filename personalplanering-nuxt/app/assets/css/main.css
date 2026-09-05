@@ -157,7 +157,7 @@ button.plain.danger:hover { background: #fee2e2; }
   display: flex;
   align-items: center;
   white-space: nowrap;
-  z-index: 2;
+  z-index: 5;
 }
 .tl-row-label.group-header {
   background: #f2f4f7;
@@ -170,7 +170,7 @@ button.plain.danger:hover { background: #fee2e2; }
 .tl-week-label {
   position: sticky;
   left: 0;
-  z-index: 2;
+  z-index: 5;
   background: var(--panel);
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
