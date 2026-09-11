@@ -117,12 +117,12 @@ describe('Signerat framåt vs Försenad start', () => {
     expect(getDelayedStartProjects([], [p], TODAY).map((x) => x.id)).toEqual([p.id])
   })
 
-  it('historisk bokning ger inte framtida bemanning – projektet hamnar i Försenad start', () => {
-    const p = mkProject({ sum: 100, start_date: at(-30) })
+  it('projekt vars planering passerat är klart att fakturera, inte försenad start', () => {
+    const p = mkProject({ status: 'klar_att_fakturera', sum: 100, start_date: at(-30) })
     const a = [mkAssignment(p.id, at(-10), at(-2))]
     expect(projectHasCurrentOrFutureAssignment(a, p.id, TODAY)).toBe(false)
     expect(getFutureSignedProjects(a, [p], TODAY)).toHaveLength(0)
-    expect(getDelayedStartProjects(a, [p], TODAY).map((x) => x.id)).toEqual([p.id])
+    expect(getDelayedStartProjects(a, [p], TODAY)).toHaveLength(0)
   })
 
   it('projekt med framtida bokning räknas inte som orderstock', () => {
@@ -160,6 +160,12 @@ describe('Saknar bemanning', () => {
   it('projekt som startar om 10 dagar flaggas inte (utanför 7-dagarsfönstret)', () => {
     const p = mkProject({ start_date: at(10) })
     expect(getUnstaffedUpcomingProjects([], [p], TODAY)).toHaveLength(0)
+  })
+
+  it('projekt som är klart att fakturera flaggas inte', () => {
+    const p = mkProject({ status: 'klar_att_fakturera', start_date: at(3) })
+    expect(getUnstaffedUpcomingProjects([], [p], TODAY)).toHaveLength(0)
+    expect(getDelayedStartProjects([], [p], TODAY)).toHaveLength(0)
   })
 })
 

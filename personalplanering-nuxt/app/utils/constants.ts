@@ -26,5 +26,6 @@ export const ANALYTICS_UNSTAFFED_LEAD_DAYS = 7
 export const STATUS_LABELS: Record<string, string> = {
   aktiv: 'Aktiv',
   planerad: 'Planerad',
+  klar_att_fakturera: 'Klar att fakturera',
   avslutad: 'Avslutad',
 }

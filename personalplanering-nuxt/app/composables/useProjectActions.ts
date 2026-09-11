@@ -24,7 +24,7 @@ export function useProjectActions() {
 
   function setStatus(
     id: number,
-    statusOverride: 'aktiv' | 'planerad' | 'avslutad' | null
+    statusOverride: 'aktiv' | 'planerad' | 'klar_att_fakturera' | 'avslutad' | null
   ): Promise<boolean> {
     return run(() => api('PUT', `/api/projects/${id}`, { status_override: statusOverride }))
   }

@@ -3,9 +3,14 @@ import { pool } from './db'
 /**
  * Automatisk projektstatus.
  *
- *  - `aktiv`     : projektet har inga bokningar i tidslinjen (nyss skapat).
- *  - `planerad`  : projektet har minst en bokning vars slutdatum är idag eller senare.
- *  - `avslutad`  : projektet har bokningar men den sista har passerat dagens datum.
+ *  - `aktiv`              : projektet har inga bokningar i tidslinjen (nyss skapat).
+ *  - `planerad`           : projektet har minst en bokning vars slutdatum är idag eller senare.
+ *  - `klar_att_fakturera` : projektet har bokningar men den sista har passerat dagens datum.
+ *  - `avslutad`           : nås bara manuellt via `status_override` (t.ex. när fakturan är skickad).
+ *
+ * Automatiken sätter alltså aldrig `avslutad` själv – ett projekt vars planering
+ * har passerat blir `klar_att_fakturera` och ligger kvar där tills någon markerar
+ * det avslutat.
  *
  * En användare kan tvinga en avvikande status via `projects.status_override`.
  * Overriden ligger kvar tills projektets bokningar ändras (create/update/delete),
@@ -31,7 +36,7 @@ export async function refreshProjectStatuses(orgId: number): Promise<void> {
         p2.id,
         CASE
           WHEN MAX(a.end_date) IS NULL     THEN 'aktiv'
-          WHEN MAX(a.end_date) < $2        THEN 'avslutad'
+          WHEN MAX(a.end_date) < $2        THEN 'klar_att_fakturera'
           ELSE 'planerad'
         END AS auto_status
       FROM projects p2

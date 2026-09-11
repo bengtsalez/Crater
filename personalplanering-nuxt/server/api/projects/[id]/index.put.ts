@@ -5,7 +5,7 @@ import { PROJECT_SELECT } from '../../../utils/queries'
 import { apiError } from '../../../utils/http'
 import { refreshProjectStatuses } from '../../../utils/projectStatus'
 
-const STATUS_VALUES = ['aktiv', 'planerad', 'avslutad']
+const STATUS_VALUES = ['aktiv', 'planerad', 'klar_att_fakturera', 'avslutad']
 
 export default defineEventHandler(async (event) => {
   const orgId = requireOrg(event)

@@ -119,7 +119,12 @@ async function remove() {
 </script>
 
 <template>
-  <UModal v-model:open="open" :fullscreen="isMobile" :title="editing ? 'Redigera projekt' : 'Nytt projekt'">
+  <UModal
+    v-model:open="open"
+    :fullscreen="isMobile"
+    :title="editing ? 'Redigera projekt' : 'Nytt projekt'"
+    :ui="{ overlay: 'z-[100]', content: 'z-[100]' }"
+  >
     <template #body>
       <form id="project-form" class="pp-form" @submit.prevent="submit">
         <label>Projektnummer
@@ -149,11 +154,13 @@ async function remove() {
             <option value="">Automatiskt (styrs av tidslinjen)</option>
             <option value="aktiv">Tvinga: Aktiv</option>
             <option value="planerad">Tvinga: Planerad</option>
+            <option value="klar_att_fakturera">Tvinga: Klar att fakturera</option>
             <option value="avslutad">Tvinga: Avslutad</option>
           </select>
           <span class="hint">
             Automatiskt: aktiv tills projektet bokas in, planerad när det ligger i
-            tidslinjen, avslutad när sista bokningen passerat. En tvingad status
+            tidslinjen, klar att fakturera när sista bokningen passerat. Avslutad
+            sätts bara manuellt (t.ex. när fakturan är skickad). En tvingad status
             gäller tills projektets bokningar ändras.
           </span>
         </label>

@@ -37,6 +37,9 @@ const managerOptions = computed(() =>
 )
 
 const showDoneTable = computed(() => !statusFilter.value || statusFilter.value === 'avslutad')
+const showFakturaTable = computed(
+  () => !statusFilter.value || statusFilter.value === 'klar_att_fakturera'
+)
 
 function toggleSort(field: string) {
   if (sortColumn.value === field) {
@@ -75,7 +78,14 @@ function sortList(list: Project[]) {
 const visible = computed(() =>
   projects.value.filter((p) => matchesQuery(p) && matchesFilters(p))
 )
-const activeProjects = computed(() => sortList(visible.value.filter((p) => p.status !== 'avslutad')))
+const activeProjects = computed(() =>
+  sortList(
+    visible.value.filter((p) => p.status !== 'avslutad' && p.status !== 'klar_att_fakturera')
+  )
+)
+const fakturaProjects = computed(() =>
+  sortList(visible.value.filter((p) => p.status === 'klar_att_fakturera'))
+)
 const doneProjects = computed(() => sortList(visible.value.filter((p) => p.status === 'avslutad')))
 
 function startInfo(p: Project) {
@@ -93,6 +103,7 @@ function rowActions(p: Project): DropdownMenuItem[][] {
     p.status === 'avslutad'
       ? { label: 'Återaktivera', onSelect: () => setStatus(p.id, 'aktiv') }
       : { label: 'Markera avslutad', onSelect: () => setStatus(p.id, 'avslutad') }
+  // 'klar_att_fakturera' faller igenom till "Markera avslutad" ovan.
   return [
     [
       { label: 'Redigera', onSelect: () => openProjectModal(p) },
@@ -184,6 +195,45 @@ function rowActions(p: Project): DropdownMenuItem[][] {
         </tr>
       </tbody>
     </table>
+
+    <template v-if="showFakturaTable && (fakturaProjects.length || statusFilter === 'klar_att_fakturera')">
+      <h2 class="group-title">Klar att fakturera</h2>
+      <table class="data-table sortable">
+        <thead>
+          <tr>
+            <th v-for="c in columns" :key="c.key">{{ c.label }}</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="!fakturaProjects.length">
+            <td colspan="9" class="empty-state">Inga projekt att fakturera.</td>
+          </tr>
+          <tr
+            v-for="p in fakturaProjects"
+            :key="p.id"
+            class="clickable"
+            @click="openProjectDetail(p.id)"
+          >
+            <td data-label="Projektnr">{{ p.project_number }}</td>
+            <td data-label="Namn">{{ p.name }}</td>
+            <td data-label="Kund">{{ p.client || '–' }}</td>
+            <td data-label="Kategori">{{ departmentLabel(p.category) }}</td>
+            <td data-label="Projektledare">{{ p.project_manager_username || '–' }}</td>
+            <td data-label="Summa">{{ formatSum(p.sum) }}</td>
+            <td data-label="Byggstart" :title="startInfo(p).title">
+              {{ startInfo(p).text }}<span v-if="startInfo(p).prel" class="hint"> (prel.)</span>
+            </td>
+            <td data-label="Byggslut">{{ p.end_date || '–' }}</td>
+            <td data-label="">
+              <UDropdownMenu :items="rowActions(p)" :content="{ align: 'end' }">
+                <button class="plain" aria-label="Fler åtgärder" @click.stop>⋯</button>
+              </UDropdownMenu>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
 
     <template v-if="showDoneTable">
       <h2 class="group-title">Avslutade projekt</h2>

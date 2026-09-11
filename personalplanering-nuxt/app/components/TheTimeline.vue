@@ -804,6 +804,7 @@ function hideTip() {
             @click="openProjectDetail(p.id)"
           >
             <span class="tl-unplanned-name">{{ p.project_number }} – {{ p.name }}</span>
+            <span class="tl-unplanned-name">{{p.start_date}}</span>
             <span class="tl-unplanned-meta">
               <span v-if="p.client">{{ p.client }}</span>
               <span v-if="p.start_date">Prel. start {{ p.start_date }}</span>

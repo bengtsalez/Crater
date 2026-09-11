@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { loadAll, loaded, loadErrors } = useAppData()
+const { loadAll, loaded, loadErrors, startPolling, stopPolling } = useAppData()
 const { activeTab, projectDetailId } = useUiState()
 const toast = useToast()
 
@@ -20,6 +20,7 @@ const partialErrorText = computed(() => {
 onMounted(async () => {
   try {
     await loadAll()
+    startPolling()
   } catch (err) {
     loadError.value = (err as Error).message
     toast.add({ title: 'Kunde inte ladda data: ' + (err as Error).message, color: 'error' })
@@ -27,6 +28,8 @@ onMounted(async () => {
     pending.value = false
   }
 })
+
+onUnmounted(stopPolling)
 </script>
 
 <template>

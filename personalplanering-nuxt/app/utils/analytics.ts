@@ -80,6 +80,11 @@ export function filterProjectsByDepartment(projects: Project[], dept: string): P
 
 const notDone = (p: Project) => p.status !== 'avslutad'
 
+// Operativt klart – ingen mer planering väntas. Används i "behöver åtgärd"-korten
+// (försenad start, saknar bemanning) så att projekt som bara väntar på fakturering
+// inte flaggas som problem. Värde-KPI:er använder fortsatt `notDone`.
+const isClosed = (p: Project) => p.status === 'avslutad' || p.status === 'klar_att_fakturera'
+
 // Projekt vars effektiva start ligger i [today, today+days].
 export function projectsStartingWithin(
   assignments: Assignment[],
@@ -120,7 +125,7 @@ export function getFutureSignedProjects(
 ): Project[] {
   const t = toISO(today)
   return projects.filter((p) => {
-    if (!notDone(p) || projectHasCurrentOrFutureAssignment(assignments, p.id, today)) return false
+    if (isClosed(p) || projectHasCurrentOrFutureAssignment(assignments, p.id, today)) return false
     // Okänt startdatum = ännu ej planerat → räknas som framtida orderstock.
     const start = effectiveStart(assignments, p).date
     return !start || start >= t
@@ -136,7 +141,7 @@ export function getDelayedStartProjects(
 ): Project[] {
   const t = toISO(today)
   return projects.filter((p) => {
-    if (!notDone(p) || projectHasCurrentOrFutureAssignment(assignments, p.id, today)) return false
+    if (isClosed(p) || projectHasCurrentOrFutureAssignment(assignments, p.id, today)) return false
     const start = effectiveStart(assignments, p).date
     return !!start && start < t
   })
@@ -161,7 +166,7 @@ export function getUnstaffedUpcomingProjects(
   return projectsStartingWithin(
     assignments,
     projects.filter(
-      (p) => notDone(p) && !projectHasCurrentOrFutureAssignment(assignments, p.id, today)
+      (p) => !isClosed(p) && !projectHasCurrentOrFutureAssignment(assignments, p.id, today)
     ),
     today,
     ANALYTICS_UNSTAFFED_LEAD_DAYS

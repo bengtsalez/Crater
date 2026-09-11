@@ -1,6 +1,13 @@
 import type { Resource, Project, Assignment, Task, User, Me, Org, Department } from '../types'
 import type { Ref } from 'vue'
 
+// Polling-läge – flera användare delar samma data (bokningar, uppgifter m.m.).
+// En enda global timer/listener oavsett hur många komponenter som anropar
+// useAppData(); start/stopPolling() är idempotenta.
+const POLL_INTERVAL_MS = 20000
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let visibilityHandler: (() => void) | null = null
+
 /**
  * Delad datacache – motsvarar gamla appens globala `state` + `loadAll()`.
  * Vue-reaktivitet ersätter `renderAll()`: komponenter läser dessa refs via computed.
@@ -68,6 +75,31 @@ export function useAppData() {
     loaded.value = true
   }
 
+  // Andra användare kan ändra bokningar/uppgifter/projekt samtidigt – poll:a
+  // i bakgrunden så det syns utan att man behöver ladda om sidan. Pausar när
+  // fliken inte är synlig, och laddar direkt när man kommer tillbaka till den.
+  function startPolling() {
+    if (!import.meta.client || pollTimer) return
+    visibilityHandler = () => {
+      if (document.visibilityState === 'visible') loadAll().catch(() => {})
+    }
+    document.addEventListener('visibilitychange', visibilityHandler)
+    pollTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') loadAll().catch(() => {})
+    }, POLL_INTERVAL_MS)
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+    if (visibilityHandler) {
+      document.removeEventListener('visibilitychange', visibilityHandler)
+      visibilityHandler = null
+    }
+  }
+
   return {
     resources,
     projects,
@@ -80,5 +112,7 @@ export function useAppData() {
     loaded,
     loadErrors,
     loadAll,
+    startPolling,
+    stopPolling,
   }
 }

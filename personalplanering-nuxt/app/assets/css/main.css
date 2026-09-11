@@ -118,6 +118,7 @@ button.plain.danger:hover { background: #fee2e2; }
 .badge.aktiv { background: #dcfce7; color: #166534; }
 .badge.avslutad { background: #f1f2f5; color: var(--text-muted); }
 .badge.planerad { background: #dbeafe; color: #1e40af; }
+.badge.klar_att_fakturera { background: #fef9c3; color: #854d0e; }
 .task-count-badge { margin-left: 6px; cursor: pointer; pointer-events: auto; }
 .task-count-badge:hover { filter: brightness(0.95); }
 
