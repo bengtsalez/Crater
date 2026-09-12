@@ -2,6 +2,7 @@
 import {
   filterProjectsByDepartment,
   getUpcomingScheduledProjects,
+  getUpcomingScheduledValue,
   getFutureSignedProjects,
   getDelayedStartProjects,
   getActiveTodayProjects,
@@ -44,7 +45,7 @@ const cards = computed<Card[]>(() => {
     {
       key: 'scheduled',
       label: `Produktion ${ANALYTICS_UPCOMING_WINDOW_DAYS} dagar`,
-      display: formatSum(projectValueSum(scheduled)),
+      display: formatSum(getUpcomingScheduledValue(a, p, t)),
       projects: scheduled,
       showSum: true,
     },

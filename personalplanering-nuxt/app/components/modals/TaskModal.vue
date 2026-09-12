@@ -116,7 +116,7 @@ async function remove() {
             </option>
           </select>
         </label>
-        <label>Förfallodatum<input v-model="form.due_date" type="date"></label>
+        <label>Förfallodatum<UiDateField v-model="form.due_date" /></label>
         <label>Anteckning<textarea v-model="form.notes" rows="2" /></label>
         <label>Status
           <select v-model="form.status">

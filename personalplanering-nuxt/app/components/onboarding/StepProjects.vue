@@ -88,8 +88,8 @@ defineExpose({ save })
       </label>
       <label>Summa (kr)<input v-model="form.sum" type="number" step="1"></label>
       <div class="row-2">
-        <label>Byggstart<input v-model="form.start_date" type="date"></label>
-        <label>Byggslut<input v-model="form.end_date" type="date"></label>
+        <label>Byggstart<UiDateField v-model="form.start_date" /></label>
+        <label>Byggslut<UiDateField v-model="form.end_date" /></label>
       </div>
       <div class="modal-actions">
         <div class="spacer" />

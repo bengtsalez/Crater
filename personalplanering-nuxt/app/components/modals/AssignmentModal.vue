@@ -148,8 +148,8 @@ async function remove() {
           </select>
         </label>
         <div class="row-2">
-          <label>Från *<input v-model="form.start_date" type="date" required></label>
-          <label>Till *<input v-model="form.end_date" type="date" required></label>
+          <label>Från *<UiDateField v-model="form.start_date" required /></label>
+          <label>Till *<UiDateField v-model="form.end_date" required /></label>
         </div>
         <label>Anteckning<input v-model="form.note"></label>
         <label v-if="canSyncProjectDates" class="checkbox-label">

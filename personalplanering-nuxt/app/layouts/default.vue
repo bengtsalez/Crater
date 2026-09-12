@@ -5,6 +5,11 @@ const route = useRoute()
 const { activeTab, projectDetailId } = useUiState()
 const { org } = useAppData()
 const { api } = useApi()
+const colorMode = useColorMode()
+
+function toggleColorMode() {
+  colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
+}
 
 const isLogin = computed(() => route.path === '/login')
 const appTitle = computed(() => org.value?.app_title || org.value?.name || 'Personalplanering')
@@ -47,6 +52,13 @@ async function logout() {
         </button>
       </nav>
       <div class="spacer" />
+      <button
+        class="plain icon-btn"
+        :title="colorMode.value === 'dark' ? 'Byt till ljust läge' : 'Byt till mörkt läge'"
+        @click="toggleColorMode"
+      >
+        <UIcon :name="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'" />
+      </button>
       <button class="plain" @click="logout()">Logga ut</button>
     </header>
 

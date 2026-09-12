@@ -86,19 +86,47 @@ describe('Produktion 30 dagar', () => {
     ]
     const ids = getUpcomingScheduledProjects(a, [inside, outside], TODAY).map((p) => p.id)
     expect(ids).toEqual([inside.id])
-    expect(getUpcomingScheduledValue(a, [inside, outside], TODAY)).toBe(100)
+    // Bokningen är 7 dagar (29–35), varav 2 (29–30) ligger inom fönstret →
+    // 100 * 2/7 ≈ 28.57, avrundat till 29. Se "prorata värdet..."-testet nedan
+    // för det generella fallet.
+    expect(getUpcomingScheduledValue(a, [inside, outside], TODAY)).toBe(29)
   })
 
   it('bokning som började före idag men överlappar idag räknas', () => {
     const p = mkProject({ sum: 500 })
     const a = [mkAssignment(p.id, at(-10), at(2))]
+    // Bokningen är 13 dagar (-10–2), varav 3 (0–2) ligger inom fönstret →
+    // 500 * 3/13 ≈ 115.38, avrundat till 115.
+    expect(getUpcomingScheduledValue(a, [p], TODAY)).toBe(115)
+  })
+
+  it('projekt med flera bokningar räknas bara en gång per dag i värdet', () => {
+    const p = mkProject({ sum: 500 })
+    const a = [mkAssignment(p.id, at(1), at(3)), mkAssignment(p.id, at(10), at(12))]
+    // Båda bokningarna (6 dagar totalt) ligger helt inom fönstret → full summa.
     expect(getUpcomingScheduledValue(a, [p], TODAY)).toBe(500)
   })
 
-  it('projekt med flera bokningar räknas bara en gång i värdet', () => {
-    const p = mkProject({ sum: 500 })
-    const a = [mkAssignment(p.id, at(1), at(3)), mkAssignment(p.id, at(10), at(12))]
-    expect(getUpcomingScheduledValue(a, [p], TODAY)).toBe(500)
+  it('prorata värdet efter andel bokade dagar inom fönstret, inte hela projektsumman', () => {
+    // Stort, långt projekt med bara en kort bokning nära i tiden ska INTE dra
+    // in hela projektsumman i "Produktion 30 dagar" – det var precis buggen.
+    const p = mkProject({ sum: 3_000_000 })
+    const a = [mkAssignment(p.id, at(5), at(6))] // 2 bokade dagar totalt, båda inom fönstret
+    expect(getUpcomingScheduledValue(a, [p], TODAY)).toBe(3_000_000)
+
+    // Samma projekt, men bokningen sträcker sig långt utanför fönstret också →
+    // bara andelen av de bokade dagarna som faller inom fönstret räknas.
+    const long = mkProject({ sum: 3_000_000 })
+    const b = [mkAssignment(long.id, at(5), at(104))] // 100 bokade dagar, 26 inom fönstret (5–30)
+    expect(getUpcomingScheduledValue(b, [long], TODAY)).toBe(Math.round(3_000_000 * (26 / 100)))
+  })
+
+  it('överlappande bokningar (flera anställda samma dagar) dubbelräknas inte som bokade dagar', () => {
+    const p = mkProject({ sum: 1000 })
+    // Två anställda bokade exakt samma 10 dagar, alla inom fönstret → union = 10
+    // bokade dagar, inte 20 – annars skulle värdet halveras felaktigt.
+    const a = [mkAssignment(p.id, at(0), at(9)), mkAssignment(p.id, at(0), at(9))]
+    expect(getUpcomingScheduledValue(a, [p], TODAY)).toBe(1000)
   })
 })
 

@@ -1,16 +1,35 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+/* Nuxt UI väljer som standard nyans 500/400 (ljus/mörk) som "primary".
+   Vi kör själva blue-600/700 överallt (se --primary nedan), så vi
+   synkar Nuxt UI:s tema-alias till samma nyans – annars blir UModal
+   m.fl. en synligt annan, ljusare blå än resten av appen. */
+:root, :host, .light {
+  --ui-primary: var(--ui-color-primary-600) !important;
+}
+.dark {
+  --ui-primary: var(--ui-color-primary-600) !important;
+}
+
 /* ============================================================
    Porterad style.css från den gamla appen – samma utseende.
    ============================================================ */
 
+/* Egna variabler alias:ade till Nuxt UI:s redan ljus+mörk-medvetna tema-tokens
+   (se app/assets/css/main.css-historik) – så att appens handstylade CSS och
+   Nuxt UI-komponenterna (UModal m.fl.) alltid byter läge tillsammans, istället
+   för att underhålla två separata paletter som kan hamna i otakt. */
 :root {
-  --bg: #f5f6f8;
-  --panel: #ffffff;
-  --border: #dde1e6;
-  --text: #1f2430;
-  --text-muted: #6b7280;
+  --bg: var(--ui-bg-muted);
+  --panel: var(--ui-bg);
+  --panel-muted: var(--ui-bg-elevated);
+  --border: var(--ui-border);
+  --border-muted: var(--ui-border-muted);
+  --text: var(--ui-text-highlighted);
+  /* Alias till Nuxt UI:s egen "muted text"-nyans (slate-500, ~4.76:1 mot vitt –
+     klarar AA om än med mindre marginal än en tidigare handplockad gray-600). */
+  --text-muted: var(--ui-text-muted);
   --primary: #2563eb;
   --primary-dark: #1d4ed8;
   --danger: #dc2626;
@@ -18,6 +37,13 @@
   --weekend: #f1f2f5;
   --holiday: #fde2e2;
   --radius: 8px;
+}
+
+/* Mörkt läge: de få fristående pastellfärgerna som inte kan alias:as rakt av. */
+.dark {
+  --today: var(--ui-color-warning-950);
+  --weekend: var(--ui-bg-elevated);
+  --holiday: var(--ui-color-error-950);
 }
 
 * { box-sizing: border-box; }
@@ -88,8 +114,10 @@ button.plain:hover { background: var(--bg); }
 button.plain.primary { background: var(--primary); color: white; border-color: var(--primary); }
 button.plain.primary:hover { background: var(--primary-dark); }
 button.plain.ghost { background: transparent; border-color: transparent; }
+button.plain.icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 7px; font-size: 18px; }
 button.plain.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
 button.plain.danger:hover { background: #fee2e2; }
+.dark button.plain.danger:hover { background: var(--color-red-950); }
 
 /* ---- Tables ---- */
 .data-table {
@@ -107,8 +135,8 @@ button.plain.danger:hover { background: #fee2e2; }
   border-bottom: 1px solid var(--border);
   font-size: 14px;
 }
-.data-table th { color: var(--text-muted); font-weight: 600; background: #fafbfc; }
-.data-table tbody tr.clickable:hover { background: #f9fafb; cursor: pointer; }
+.data-table th { color: var(--text-muted); font-weight: 600; background: var(--panel-muted); }
+.data-table tbody tr.clickable:hover { background: var(--panel-muted); cursor: pointer; }
 .data-table.sortable th[data-sort] { cursor: pointer; user-select: none; }
 .data-table.sortable th[data-sort]:hover { color: var(--text); }
 .data-table.sortable th.sort-asc::after { content: ' ▲'; font-size: 10px; }
@@ -119,6 +147,10 @@ button.plain.danger:hover { background: #fee2e2; }
 .badge.avslutad { background: #f1f2f5; color: var(--text-muted); }
 .badge.planerad { background: #dbeafe; color: #1e40af; }
 .badge.klar_att_fakturera { background: #fef9c3; color: #854d0e; }
+.dark .badge.aktiv { background: var(--ui-color-success-950); color: var(--ui-color-success-300); }
+.dark .badge.avslutad { background: var(--ui-bg-elevated); color: var(--text-muted); }
+.dark .badge.planerad { background: var(--ui-color-info-950); color: var(--ui-color-info-300); }
+.dark .badge.klar_att_fakturera { background: var(--ui-color-warning-950); color: var(--ui-color-warning-300); }
 .task-count-badge { margin-left: 6px; cursor: pointer; pointer-events: auto; }
 .task-count-badge:hover { filter: brightness(0.95); }
 
@@ -161,7 +193,7 @@ button.plain.danger:hover { background: #fee2e2; }
   z-index: 5;
 }
 .tl-row-label.group-header {
-  background: #f2f4f7;
+  background: var(--panel-muted);
   font-weight: 600;
   color: var(--text-muted);
   font-size: 12px;
@@ -183,7 +215,7 @@ button.plain.danger:hover { background: #fee2e2; }
   text-align: center;
   color: var(--text-muted);
   background: var(--panel);
-  border-right: 1px solid #eceff2;
+  border-right: 1px solid var(--border-muted);
   border-bottom: 1px solid var(--border);
 }
 .tl-day-header {
@@ -191,7 +223,7 @@ button.plain.danger:hover { background: #fee2e2; }
   font-size: 11px;
   text-align: center;
   border-bottom: 1px solid var(--border);
-  border-right: 1px solid #eceff2;
+  border-right: 1px solid var(--border-muted);
   color: var(--text-muted);
   background: var(--panel);
 }
@@ -200,7 +232,7 @@ button.plain.danger:hover { background: #fee2e2; }
 .tl-day-header.today { background: var(--today); }
 .tl-day-header .dow { display: block; font-size: 9px; }
 .tl-cell {
-  border-right: 1px solid #eceff2;
+  border-right: 1px solid var(--border-muted);
   border-bottom: 1px solid var(--border);
   position: relative;
   min-height: 30px;
@@ -209,6 +241,7 @@ button.plain.danger:hover { background: #fee2e2; }
 .tl-cell.holiday { background: var(--holiday); }
 .tl-cell.today { background: var(--today); }
 .tl-cell:hover { background: #eef2ff; cursor: pointer; }
+.dark .tl-cell:hover { background: var(--ui-color-primary-950); }
 .tl-bar {
   position: absolute;
   border-radius: 4px;
@@ -384,6 +417,7 @@ button.plain.danger:hover { background: #fee2e2; }
 .month-day:hover { border-color: var(--primary); }
 .month-day.other-month { opacity: 0.4; }
 .month-day.today { border-color: var(--primary); background: #eff6ff; }
+.dark .month-day.today { background: var(--ui-color-primary-950); }
 .month-day .day-num { font-weight: 600; margin-bottom: 4px; }
 .month-day .chip {
   display: block;
@@ -398,6 +432,8 @@ button.plain.danger:hover { background: #fee2e2; }
   text-overflow: ellipsis;
 }
 .month-day .chip.start { background: #fee2e2; color: #991b1b; font-weight: 600; }
+.dark .month-day .chip { background: var(--color-indigo-950); color: var(--color-indigo-300); }
+.dark .month-day .chip.start { background: var(--color-red-950); color: var(--color-red-300); }
 
 /* ---- Modalinnehåll (inuti UModal) ---- */
 .pp-form { display: flex; flex-direction: column; gap: 10px; }
@@ -416,6 +452,49 @@ button.plain.danger:hover { background: #fee2e2; }
 .pp-form .row-2 label { flex: 1; }
 .pp-form .checkbox-label { flex-direction: row; align-items: center; gap: 6px; }
 .modal-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+
+/* Egen fokusram i appens blå – utan denna faller fälten tillbaka på
+   webbläsarens (ofta annorlunda mättade) default-blå vid klick/tab. */
+.pp-form input:focus-visible,
+.pp-form select:focus-visible,
+.pp-form textarea:focus-visible,
+.login-card input:focus-visible,
+.ob-list-row input:focus-visible,
+.ob-add-row input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  border-color: var(--primary);
+}
+
+/* ---- Datumfält med synlig kalender-ikon (DateField.vue) ---- */
+.date-field {
+  position: relative;
+  display: flex;
+}
+.date-field input[type="date"] {
+  flex: 1;
+  width: 100%;
+  /* plats åt vår egen ikon */
+  padding-right: 30px;
+}
+/* Göm webbläsarens inbyggda kalender-ikon – vi ritar en egen, synlig, i dess ställe. */
+.date-field input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  position: absolute;
+  right: 0;
+  width: 30px;
+  height: 100%;
+}
+.date-field-icon {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.date-field-icon:hover { color: var(--primary); }
 
 /* ---- Min sida ---- */
 .ms-overview { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -504,6 +583,7 @@ button.plain.danger:hover { background: #fee2e2; }
 .login-card button:hover { background: var(--primary-dark); }
 .login-card button:disabled { opacity: 0.6; cursor: default; }
 .login-card .error { color: var(--danger); font-size: 13px; margin: -8px 0 16px; min-height: 16px; }
+.dark .login-card .error { color: var(--ui-color-error-400); }
 .login-alt, .signup-alt { margin: 14px 0 0; font-size: 13px; text-align: center; color: var(--text-muted); }
 
 /* ---- Onboarding-wizard ---- */
@@ -557,6 +637,7 @@ button.plain.danger:hover { background: #fee2e2; }
 .ob-progress-item.current .ob-progress-btn { color: var(--text); font-weight: 600; }
 .ob-progress-item.current .ob-progress-num { background: var(--primary); color: #fff; border-color: var(--primary); }
 .ob-progress-item.done .ob-progress-num { background: #dcfce7; border-color: #86efac; color: #166534; }
+.dark .ob-progress-item.done .ob-progress-num { background: var(--ui-color-success-950); border-color: var(--ui-color-success-700); color: var(--ui-color-success-300); }
 .ob-progress-item.skipped .ob-progress-num { opacity: 0.5; }
 
 .ob-step h2 { font-size: 17px; margin: 0 0 4px; }
@@ -652,6 +733,7 @@ button.plain.danger:hover { background: #fee2e2; }
   color: var(--primary);
   cursor: pointer;
 }
+.dark .tl-list-add { color: var(--ui-color-primary-400); }
 .tl-list-add:active { background: var(--bg); }
 .tl-list-empty { padding: 10px 12px; font-size: 13px; color: var(--text-muted); }
 .tl-list-starts {
@@ -736,7 +818,7 @@ button.plain.danger:hover { background: #fee2e2; }
     padding: 4px 12px;
     background: var(--panel);
   }
-  .data-table tr.clickable:active { background: #f9fafb; }
+  .data-table tr.clickable:active { background: var(--panel-muted); }
   .data-table td {
     border: none;
     border-bottom: 1px solid var(--border);

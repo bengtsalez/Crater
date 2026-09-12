@@ -10,6 +10,11 @@ export function fromISO(str: string): Date {
   return new Date(y!, m! - 1, d!)
 }
 
+// Antal hela dagar mellan två ISO-datum, inklusive båda ändpunkterna.
+export function daysBetweenInclusive(startISO: string, endISO: string): number {
+  return Math.round((fromISO(endISO).getTime() - fromISO(startISO).getTime()) / 86_400_000) + 1
+}
+
 export function addDays(date: Date, n: number): Date {
   const d = new Date(date)
   d.setDate(d.getDate() + n)

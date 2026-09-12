@@ -96,7 +96,7 @@ async function remove() {
       <form id="line-item-form" class="pp-form" @submit.prevent="submit">
         <label>Beskrivning *<input v-model="form.description" required></label>
         <label>Belopp (kr) *<input v-model="form.amount" type="number" step="1" required></label>
-        <label>Datum<input v-model="form.date" type="date"></label>
+        <label>Datum<UiDateField v-model="form.date" /></label>
         <label>Anteckning<textarea v-model="form.notes" rows="2" /></label>
         <div class="modal-actions">
           <button v-if="editing" type="button" class="plain danger" :disabled="deleting" @click="remove">Ta bort</button>

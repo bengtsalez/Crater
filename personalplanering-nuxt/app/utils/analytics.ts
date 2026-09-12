@@ -1,4 +1,4 @@
-import { toISO, addDays } from './dates'
+import { toISO, addDays, daysBetweenInclusive } from './dates'
 import { ANALYTICS_UPCOMING_WINDOW_DAYS, ANALYTICS_UNSTAFFED_LEAD_DAYS } from './constants'
 import type { Project, Assignment } from '../types'
 
@@ -105,7 +105,9 @@ export function projectValueSum(projects: Project[]): number {
 }
 
 // KPI 1 ("Produktion 30 dagar"): ej avslutade projekt med minst en bokning som
-// överlappar [idag, idag+N dagar]. Hela projektvärdet räknas en gång.
+// överlappar [idag, idag+N dagar]. Projektlistan (för klick-igenom-modalen) tar
+// med hela projekt som kvalar in – prorateringen av VÄRDET sker separat, se
+// `getUpcomingScheduledValue`.
 export function getUpcomingScheduledProjects(
   assignments: Assignment[],
   projects: Project[],
@@ -114,6 +116,46 @@ export function getUpcomingScheduledProjects(
   const from = toISO(today)
   const to = toISO(addDays(today, ANALYTICS_UPCOMING_WINDOW_DAYS))
   return projects.filter((p) => notDone(p) && projectHasAssignmentInWindow(assignments, p.id, from, to))
+}
+
+// Slår ihop överlappande datumintervall så att dagar med flera samtidiga
+// bokningar (t.ex. två anställda samma dag) inte räknas dubbelt.
+function mergeDateRanges(ranges: [string, string][]): [string, string][] {
+  const sorted = [...ranges].sort((a, b) => a[0].localeCompare(b[0]))
+  const merged: [string, string][] = []
+  for (const [start, end] of sorted) {
+    const last = merged[merged.length - 1]
+    if (last && start <= last[1]) {
+      if (end > last[1]) last[1] = end
+    } else {
+      merged.push([start, end])
+    }
+  }
+  return merged
+}
+
+// Prorata ett projekts värde efter hur stor andel av dess faktiskt bokade
+// dagar (unionen av alla bokningar, inte hela projektets löptid) som ligger
+// inom [fromISO, untilISO]. Ett projekt som bara har en enstaka bokad dag i
+// fönstret bidrar alltså bara med en bråkdel av sin totala summa, inte hela.
+export function projectProductionValue(
+  assignments: Assignment[],
+  project: Project,
+  fromISO: string,
+  untilISO: string
+): number {
+  if (!project.sum) return 0
+  const ranges = mergeDateRanges(
+    assignments.filter((a) => a.project_id === project.id).map((a): [string, string] => [a.start_date, a.end_date])
+  )
+  const totalBookedDays = ranges.reduce((sum, [s, e]) => sum + daysBetweenInclusive(s, e), 0)
+  if (totalBookedDays <= 0) return 0
+  const daysInWindow = ranges.reduce((sum, [s, e]) => {
+    const start = s > fromISO ? s : fromISO
+    const end = e < untilISO ? e : untilISO
+    return sum + (start <= end ? daysBetweenInclusive(start, end) : 0)
+  }, 0)
+  return project.sum * (daysInWindow / totalBookedDays)
 }
 
 // KPI 2 ("Signerat framåt"): framtida orderstock = ej avslutade projekt utan
@@ -177,7 +219,13 @@ export function getUnstaffedUpcomingProjects(
 
 // Aggregatvärden – härleds ur respektive projektlista.
 export function getUpcomingScheduledValue(assignments: Assignment[], projects: Project[], today: Date): number {
-  return projectValueSum(getUpcomingScheduledProjects(assignments, projects, today))
+  const from = toISO(today)
+  const until = toISO(addDays(today, ANALYTICS_UPCOMING_WINDOW_DAYS))
+  const total = getUpcomingScheduledProjects(assignments, projects, today).reduce(
+    (sum, p) => sum + projectProductionValue(assignments, p, from, until),
+    0
+  )
+  return Math.round(total)
 }
 export function getFutureSignedValue(assignments: Assignment[], projects: Project[], today: Date): number {
   return projectValueSum(getFutureSignedProjects(assignments, projects, today))
