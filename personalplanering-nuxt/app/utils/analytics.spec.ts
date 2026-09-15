@@ -25,6 +25,8 @@ function mkProject(p: Partial<Project> = {}): Project {
     project_number: `26-${id}`,
     name: `Projekt ${id}`,
     client: null,
+    customer_id: null,
+    customer_name: null,
     project_manager_user_id: null,
     project_manager_username: null,
     sum: 0,
@@ -34,6 +36,9 @@ function mkProject(p: Partial<Project> = {}): Project {
     status_override: null,
     notes: null,
     category: null,
+    work_type: 'project',
+    billing_type: 'billable',
+    source_project_id: null,
     ...p,
   }
 }

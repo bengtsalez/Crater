@@ -20,11 +20,17 @@ const editing = computed(() => !!modal.value.project)
 const saving = ref(false)
 const deleting = ref(false)
 
+// Garanti/interna ströjobb faktureras aldrig – dölj "klar att fakturera" som
+// manuellt tvingbar status för dem så att man inte kan tvinga fram ett
+// motsägelsefullt läge.
+const canForceFaktureraStatus = computed(() => (modal.value.project?.billing_type ?? 'billable') === 'billable')
+
 const form = reactive({
   id: '' as number | '',
   project_number: '',
   name: '',
-  client: '',
+  customer_id: null as number | null,
+  customer_name: '',
   category: '',
   project_manager_user_id: '' as number | '',
   sum: '' as number | '',
@@ -44,7 +50,8 @@ watch(
         id: p.id,
         project_number: p.project_number,
         name: p.name,
-        client: p.client || '',
+        customer_id: p.customer_id,
+        customer_name: p.customer_name || p.client || '',
         category: p.category || '',
         project_manager_user_id: p.project_manager_user_id || '',
         sum: p.sum ?? '',
@@ -58,7 +65,8 @@ watch(
         id: '',
         project_number: '…',
         name: '',
-        client: '',
+        customer_id: null,
+        customer_name: '',
         category: '',
         project_manager_user_id: '',
         sum: '',
@@ -83,7 +91,8 @@ async function submit() {
   const payload = {
     project_number: form.project_number.trim(),
     name: form.name.trim(),
-    client: form.client.trim(),
+    customer_id: form.customer_id,
+    customer_name: form.customer_name.trim(),
     category: form.category || null,
     project_manager_user_id: form.project_manager_user_id ? Number(form.project_manager_user_id) : null,
     sum: form.sum === '' ? '' : Number(form.sum),
@@ -131,7 +140,9 @@ async function remove() {
           <input v-model="form.project_number" required :readonly="!editing">
         </label>
         <label>Namn *<input v-model="form.name" required></label>
-        <label>Kund<input v-model="form.client"></label>
+        <label>Kund
+          <UiCustomerPicker v-model:customer-id="form.customer_id" v-model:customer-name="form.customer_name" />
+        </label>
         <label>Kategori
           <select v-model="form.category">
             <option value="">Ingen vald</option>
@@ -154,7 +165,7 @@ async function remove() {
             <option value="">Automatiskt (styrs av tidslinjen)</option>
             <option value="aktiv">Tvinga: Aktiv</option>
             <option value="planerad">Tvinga: Planerad</option>
-            <option value="klar_att_fakturera">Tvinga: Klar att fakturera</option>
+            <option v-if="canForceFaktureraStatus" value="klar_att_fakturera">Tvinga: Klar att fakturera</option>
             <option value="avslutad">Tvinga: Avslutad</option>
           </select>
           <span class="hint">

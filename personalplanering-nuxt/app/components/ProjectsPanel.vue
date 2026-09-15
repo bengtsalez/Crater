@@ -4,6 +4,7 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 import { compareProjects, effectiveStart } from '~/utils/analytics'
 import { formatSum } from '~/utils/format'
 import { STATUS_LABELS } from '~/utils/constants'
+import { projectCustomerName } from '~/utils/customers'
 
 const { projects, assignments } = useAppData()
 const { labelFor: departmentLabel, options: departmentOptions } = useDepartments()
@@ -18,6 +19,7 @@ const sortDirection = ref<'asc' | 'desc'>('asc')
 const departmentFilter = ref('')
 const statusFilter = ref('')
 const managerFilter = ref('')
+const typeFilter = ref<'project' | 'all'>('project')
 
 const columns = [
   { key: 'project_number', label: 'Projektnr' },
@@ -55,7 +57,7 @@ function matchesQuery(p: Project) {
   if (!q) return true
   return [
     p.name,
-    p.client,
+    projectCustomerName(p),
     p.project_number,
     p.project_manager_username,
     departmentLabel(p.category),
@@ -76,7 +78,9 @@ function sortList(list: Project[]) {
 }
 
 const visible = computed(() =>
-  projects.value.filter((p) => matchesQuery(p) && matchesFilters(p))
+  projects.value.filter(
+    (p) => (typeFilter.value === 'all' || p.work_type === 'project') && matchesQuery(p) && matchesFilters(p)
+  )
 )
 const activeProjects = computed(() =>
   sortList(
@@ -140,6 +144,12 @@ function rowActions(p: Project): DropdownMenuItem[][] {
           <option v-for="m in managerOptions" :key="m" :value="m">{{ m }}</option>
         </select>
       </label>
+      <label class="filter-label">Visa:
+        <select v-model="typeFilter">
+          <option value="project">Projekt</option>
+          <option value="all">Alla (inkl. ströjobb)</option>
+        </select>
+      </label>
       <div class="spacer" />
       <button class="plain primary" @click="openProjectModal(null)">+ Nytt projekt</button>
     </div>
@@ -175,7 +185,7 @@ function rowActions(p: Project): DropdownMenuItem[][] {
         >
           <td data-label="Projektnr">{{ p.project_number }}</td>
           <td data-label="Namn">{{ p.name }}</td>
-          <td data-label="Kund">{{ p.client || '–' }}</td>
+          <td data-label="Kund">{{ projectCustomerName(p) || '–' }}</td>
           <td data-label="Kategori">{{ departmentLabel(p.category) }}</td>
           <td data-label="Projektledare">{{ p.project_manager_username || '–' }}</td>
           <td data-label="Summa">{{ formatSum(p.sum) }}</td>
@@ -217,7 +227,7 @@ function rowActions(p: Project): DropdownMenuItem[][] {
           >
             <td data-label="Projektnr">{{ p.project_number }}</td>
             <td data-label="Namn">{{ p.name }}</td>
-            <td data-label="Kund">{{ p.client || '–' }}</td>
+            <td data-label="Kund">{{ projectCustomerName(p) || '–' }}</td>
             <td data-label="Kategori">{{ departmentLabel(p.category) }}</td>
             <td data-label="Projektledare">{{ p.project_manager_username || '–' }}</td>
             <td data-label="Summa">{{ formatSum(p.sum) }}</td>
@@ -256,7 +266,7 @@ function rowActions(p: Project): DropdownMenuItem[][] {
           >
             <td data-label="Projektnr">{{ p.project_number }}</td>
             <td data-label="Namn">{{ p.name }}</td>
-            <td data-label="Kund">{{ p.client || '–' }}</td>
+            <td data-label="Kund">{{ projectCustomerName(p) || '–' }}</td>
             <td data-label="Kategori">{{ departmentLabel(p.category) }}</td>
             <td data-label="Projektledare">{{ p.project_manager_username || '–' }}</td>
             <td data-label="Summa">{{ formatSum(p.sum) }}</td>

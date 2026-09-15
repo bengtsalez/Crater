@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { activeProjectsForSelect } from '~/utils/analytics'
+import { projectDisplayLabel } from '~/utils/projects'
 
-const { assignment: modal, openProjectModal } = useModals()
+const { assignment: modal, openProjectModal, openQuickJobModal } = useModals()
 const { resources, projects, loadAll } = useAppData()
 const { api } = useApi()
 const toast = useToast()
@@ -25,7 +26,7 @@ let lastSyncProjectDates = false
 const form = reactive({
   id: '' as number | '',
   resource_id: '' as number | '',
-  project_id: '' as number | '' | '__new__',
+  project_id: '' as number | '' | '__new__' | '__new_job__',
   start_date: '',
   end_date: '',
   note: '',
@@ -59,7 +60,7 @@ watch(
       Object.assign(form, {
         id: '',
         resource_id: modal.value.resourceId ?? (resources.value[0]?.id ?? ''),
-        project_id: '',
+        project_id: modal.value.projectId ?? '',
         start_date: modal.value.date || '',
         end_date: modal.value.date || '',
         note: '',
@@ -71,6 +72,17 @@ watch(
 )
 
 function onProjectChange() {
+  if (form.project_id === '__new_job__') {
+    form.project_id = prevProjectId
+    openQuickJobModal({
+      onCreated: (job) => {
+        form.project_id = job.id
+        prevProjectId = job.id
+        toast.add({ title: `Ströjobb ${job.project_number} skapat och valt` })
+      },
+    })
+    return
+  }
   if (form.project_id !== '__new__') {
     prevProjectId = typeof form.project_id === 'number' ? form.project_id : ''
     return
@@ -142,9 +154,10 @@ async function remove() {
           <select v-model="form.project_id" required @change="onProjectChange">
             <option value="" disabled>Välj projekt…</option>
             <option v-for="p in projectOptions" :key="p.id" :value="p.id">
-              {{ p.project_number }} – {{ p.name }}
+              {{ projectDisplayLabel(p) }}
             </option>
             <option value="__new__">+ Skapa nytt projekt</option>
+            <option value="__new_job__">+ Skapa ströjobb</option>
           </select>
         </label>
         <div class="row-2">

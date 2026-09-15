@@ -19,7 +19,14 @@ const { openProjectListModal } = useModals()
 const today = useToday()
 
 const department = ref('')
-const filtered = computed(() => filterProjectsByDepartment(projects.value, department.value))
+// Ströjobb ska inte räknas i projekt-KPI:er (omsättning, signerat, etc.) tills
+// vidare – bara vanliga projekt går vidare till KPI-beräkningarna.
+const filtered = computed(() =>
+  filterProjectsByDepartment(
+    projects.value.filter((p) => p.work_type === 'project'),
+    department.value
+  )
+)
 
 interface Card {
   key: string

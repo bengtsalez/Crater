@@ -1,17 +1,36 @@
 <script setup lang="ts">
-import type { Task, LineItem } from '~/types'
+import type { Task, LineItem, Project } from '~/types'
 import { effectiveStart } from '~/utils/analytics'
 import { formatSum } from '~/utils/format'
 import { STATUS_LABELS } from '~/utils/constants'
+import { BILLING_TYPE_LABELS } from '~/utils/projects'
+import { projectCustomerName } from '~/utils/customers'
 
-const { projects, assignments, currentUser, loadAll } = useAppData()
-const { projectDetailId, closeProjectDetail } = useUiState()
+const { projects, assignments, customers, currentUser, loadAll } = useAppData()
+const { projectDetailId, projectDetailBackLabel, closeProjectDetail, openProjectDetail, openCustomerDetail } = useUiState()
 const { openProjectModal, openLineItemModal, openTaskModal } = useModals()
 const { lineItems, tasks, refresh } = useProjectDetail()
 const { api } = useApi()
 const toast = useToast()
 
 const project = computed(() => projects.value.find((p) => p.id === projectDetailId.value) || null)
+const customer = computed(() => customers.value.find((c) => c.id === project.value?.customer_id) || null)
+const detailIsSmallJob = computed(() => project.value?.work_type === 'small_job')
+
+const relatedJobs = computed(() =>
+  project.value
+    ? [...projects.value]
+        .filter((p) => p.source_project_id === project.value!.id)
+        .sort((a, b) => a.project_number.localeCompare(b.project_number, 'sv'))
+    : []
+)
+const sourceProject = computed(() =>
+  project.value?.source_project_id ? projects.value.find((p) => p.id === project.value!.source_project_id) || null : null
+)
+
+function relatedJobDate(job: Project) {
+  return effectiveStart(assignments.value, job).date || job.start_date || '–'
+}
 
 watch(
   projectDetailId,
@@ -83,7 +102,7 @@ async function deleteTask(t: Task) {
 <template>
   <section v-if="project">
     <div class="toolbar">
-      <button class="plain ghost" @click="closeProjectDetail()">‹ Tillbaka till projekt</button>
+      <button class="plain ghost" @click="closeProjectDetail()">{{ projectDetailBackLabel }}</button>
       <div class="spacer" />
       <button class="plain primary" @click="openProjectModal(project)">Redigera projekt</button>
     </div>
@@ -94,7 +113,14 @@ async function deleteTask(t: Task) {
       <span v-if="project.status_override" class="hint" title="Manuellt tvingad status">manuell</span>
     </div>
     <div class="pd-meta">
-      <span>Kund: {{ project.client || '–' }}</span>
+      <span>Kund:
+        <button v-if="project.customer_id" type="button" class="link-button" @click="openCustomerDetail(project.customer_id)">
+          {{ projectCustomerName(project) }}
+        </button>
+        <template v-else>{{ projectCustomerName(project) || '–' }}</template>
+      </span>
+      <span v-if="customer?.phone">Tel: {{ customer.phone }}</span>
+      <span v-if="customer?.email">E-post: {{ customer.email }}</span>
       <span>Projektledare: {{ project.project_manager_username || '–' }}</span>
       <template v-if="es && es.planned">
         <span>Byggstart (inplanerad): {{ es.date }}</span>
@@ -102,51 +128,76 @@ async function deleteTask(t: Task) {
       </template>
       <span v-else>Byggstart (preliminär): {{ es?.date || '–' }}</span>
       <span>Byggslut: {{ project.end_date || '–' }}</span>
+      <span v-if="detailIsSmallJob">Typ: {{ BILLING_TYPE_LABELS[project.billing_type] || project.billing_type }}</span>
     </div>
 
-    <div class="ms-overview">
-      <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(baseSum) }}</div><div class="ms-stat-label">Kontraktssumma</div></div>
-      <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(ataTotal) }}</div><div class="ms-stat-label">ÄTA-tillägg</div></div>
-      <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(revenue) }}</div><div class="ms-stat-label">Intäkter totalt</div></div>
-      <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(expenseTotal) }}</div><div class="ms-stat-label">Utgifter totalt</div></div>
-      <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(result) }}</div><div class="ms-stat-label">Resultat</div></div>
+    <div v-if="sourceProject" class="pd-meta">
+      <span>
+        Relaterat projekt:
+        <button type="button" class="link-button" @click="openProjectDetail(sourceProject.id)">
+          {{ sourceProject.project_number }} – {{ sourceProject.name }}
+        </button>
+      </span>
     </div>
 
-    <div class="toolbar">
-      <h3 class="group-title" style="margin: 0">ÄTA-arbeten</h3>
-      <div class="spacer" />
-      <button class="plain primary" @click="openLineItemModal('ata', null, project.id)">+ Ny ÄTA</button>
-    </div>
-    <table class="data-table">
-      <thead><tr><th>Beskrivning</th><th>Datum</th><th>Belopp</th><th /></tr></thead>
-      <tbody>
-        <tr v-if="!ata.length"><td colspan="4" class="empty-state">Inga rader ännu.</td></tr>
-        <tr v-for="li in ata" :key="li.id" class="clickable" @click="openLineItemModal('ata', li, project.id)">
-          <td data-label="Beskrivning">{{ li.description }}</td>
-          <td data-label="Datum">{{ li.date || '–' }}</td>
-          <td data-label="Belopp">{{ formatSum(li.amount) }}</td>
-          <td data-label=""><button class="plain danger" @click.stop="deleteLineItem(li)">Ta bort</button></td>
-        </tr>
-      </tbody>
-    </table>
+    <template v-if="!detailIsSmallJob">
+      <div class="ms-overview">
+        <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(baseSum) }}</div><div class="ms-stat-label">Kontraktssumma</div></div>
+        <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(ataTotal) }}</div><div class="ms-stat-label">ÄTA-tillägg</div></div>
+        <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(revenue) }}</div><div class="ms-stat-label">Intäkter totalt</div></div>
+        <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(expenseTotal) }}</div><div class="ms-stat-label">Utgifter totalt</div></div>
+        <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(result) }}</div><div class="ms-stat-label">Resultat</div></div>
+      </div>
 
-    <div class="toolbar">
-      <h3 class="group-title" style="margin: 0">Utgifter</h3>
-      <div class="spacer" />
-      <button class="plain primary" @click="openLineItemModal('utgift', null, project.id)">+ Ny utgift</button>
-    </div>
-    <table class="data-table">
-      <thead><tr><th>Beskrivning</th><th>Datum</th><th>Belopp</th><th /></tr></thead>
-      <tbody>
-        <tr v-if="!expenses.length"><td colspan="4" class="empty-state">Inga rader ännu.</td></tr>
-        <tr v-for="li in expenses" :key="li.id" class="clickable" @click="openLineItemModal('utgift', li, project.id)">
-          <td data-label="Beskrivning">{{ li.description }}</td>
-          <td data-label="Datum">{{ li.date || '–' }}</td>
-          <td data-label="Belopp">{{ formatSum(li.amount) }}</td>
-          <td data-label=""><button class="plain danger" @click.stop="deleteLineItem(li)">Ta bort</button></td>
-        </tr>
-      </tbody>
-    </table>
+      <div class="toolbar">
+        <h3 class="group-title" style="margin: 0">ÄTA-arbeten</h3>
+        <div class="spacer" />
+        <button class="plain primary" @click="openLineItemModal('ata', null, project.id)">+ Ny ÄTA</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Beskrivning</th><th>Datum</th><th>Belopp</th><th /></tr></thead>
+        <tbody>
+          <tr v-if="!ata.length"><td colspan="4" class="empty-state">Inga rader ännu.</td></tr>
+          <tr v-for="li in ata" :key="li.id" class="clickable" @click="openLineItemModal('ata', li, project.id)">
+            <td data-label="Beskrivning">{{ li.description }}</td>
+            <td data-label="Datum">{{ li.date || '–' }}</td>
+            <td data-label="Belopp">{{ formatSum(li.amount) }}</td>
+            <td data-label=""><button class="plain danger" @click.stop="deleteLineItem(li)">Ta bort</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="toolbar">
+        <h3 class="group-title" style="margin: 0">Utgifter</h3>
+        <div class="spacer" />
+        <button class="plain primary" @click="openLineItemModal('utgift', null, project.id)">+ Ny utgift</button>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Beskrivning</th><th>Datum</th><th>Belopp</th><th /></tr></thead>
+        <tbody>
+          <tr v-if="!expenses.length"><td colspan="4" class="empty-state">Inga rader ännu.</td></tr>
+          <tr v-for="li in expenses" :key="li.id" class="clickable" @click="openLineItemModal('utgift', li, project.id)">
+            <td data-label="Beskrivning">{{ li.description }}</td>
+            <td data-label="Datum">{{ li.date || '–' }}</td>
+            <td data-label="Belopp">{{ formatSum(li.amount) }}</td>
+            <td data-label=""><button class="plain danger" @click.stop="deleteLineItem(li)">Ta bort</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="group-title">Relaterade arbeten</h3>
+      <table class="data-table">
+        <thead><tr><th>Jobb</th><th>Typ</th><th>Datum</th></tr></thead>
+        <tbody>
+          <tr v-if="!relatedJobs.length"><td colspan="3" class="empty-state">Inga relaterade ströjobb.</td></tr>
+          <tr v-for="job in relatedJobs" :key="job.id" class="clickable" @click="openProjectDetail(job.id)">
+            <td data-label="Jobb">{{ job.project_number }} – {{ job.name }}</td>
+            <td data-label="Typ">{{ BILLING_TYPE_LABELS[job.billing_type] || job.billing_type }}</td>
+            <td data-label="Datum">{{ relatedJobDate(job) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
 
     <h3 class="group-title">Inplanerad personal</h3>
     <table class="data-table">

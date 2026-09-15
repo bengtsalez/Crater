@@ -5,4 +5,6 @@
   <ModalsTaskModal />
   <ModalsLineItemModal />
   <ModalsProjectListModal />
+  <ModalsQuickJobModal />
+  <ModalsCustomerModal />
 </template>

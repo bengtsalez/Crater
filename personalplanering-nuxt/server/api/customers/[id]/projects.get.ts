@@ -1,0 +1,10 @@
+import { pool } from '../../../utils/db'
+import { requireOrg } from '../../../utils/auth'
+import { PROJECT_SELECT } from '../../../utils/queries'
+
+export default defineEventHandler(async (event) => {
+  const orgId = requireOrg(event)
+  const id = getRouterParam(event, 'id')
+  const { rows } = await pool.query(`${PROJECT_SELECT} WHERE p.customer_id = $1 AND p.org_id = $2 ORDER BY p.project_number`, [id, orgId])
+  return rows
+})

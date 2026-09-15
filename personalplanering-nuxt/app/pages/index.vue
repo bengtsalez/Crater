@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { loadAll, loaded, loadErrors, startPolling, stopPolling } = useAppData()
-const { activeTab, projectDetailId } = useUiState()
+const { activeTab, projectDetailId, customerDetailId } = useUiState()
 const toast = useToast()
 
 const loadError = ref('')
@@ -13,6 +13,7 @@ const partialErrorText = computed(() => {
     users: 'användare',
     departments: 'avdelningar',
     tasks: 'uppgifter',
+    customers: 'kunder',
   }
   return keys.map((k) => labels[k] || k).join(', ')
 })
@@ -41,12 +42,15 @@ onUnmounted(stopPolling)
         Vissa uppgifter kunde inte hämtas ({{ partialErrorText }}). Övrigt fungerar.
       </p>
       <ProjectDetail v-if="projectDetailId" />
+      <CustomerDetail v-else-if="customerDetailId" />
       <template v-else>
         <TheTimeline v-if="activeTab === 'timeline'" />
         <AnalyticsPanel v-else-if="activeTab === 'analytics'" />
         <MonthCalendar v-else-if="activeTab === 'month'" />
         <ProjectsPanel v-else-if="activeTab === 'projects'" />
+        <SmallJobsPanel v-else-if="activeTab === 'strojobb'" />
         <ResourcesPanel v-else-if="activeTab === 'resources'" />
+        <CustomersPanel v-else-if="activeTab === 'kunder'" />
         <MinSidaPanel v-else-if="activeTab === 'minsida'" />
       </template>
     </template>

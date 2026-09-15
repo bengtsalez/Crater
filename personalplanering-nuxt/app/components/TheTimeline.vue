@@ -5,6 +5,7 @@ import {
 } from '~/utils/dates'
 import { colorForResource, shadeForProject, readableText } from '~/utils/colors'
 import { isProjectPast } from '~/utils/analytics'
+import { isSmallJob, projectDisplayLabel } from '~/utils/projects'
 import { taskCountLabel } from '~/utils/format'
 import {
   DOW_LABELS,
@@ -79,10 +80,17 @@ const subcontractors = computed(() =>
     : resources.value.filter((r) => r.type === 'underentreprenor')
 )
 
-// Projekt som ännu inte planerats in (status "aktiv") – visas som lista bredvid tidslinjen.
-const unplannedProjects = computed(() =>
+// Projekt/ströjobb som ännu inte planerats in (status "aktiv") – visas som två
+// separata listor bredvid tidslinjen så att ströjobb inte blandas osorterat med
+// riktiga projekt.
+const unplannedRegularProjects = computed(() =>
   projects.value
-    .filter((p) => p.status === 'aktiv' && matchesProjectSearch(p.project_number))
+    .filter((p) => p.work_type === 'project' && p.status === 'aktiv' && matchesProjectSearch(p.project_number))
+    .sort((a, b) => a.project_number.localeCompare(b.project_number, 'sv'))
+)
+const unplannedSmallJobs = computed(() =>
+  projects.value
+    .filter((p) => p.work_type === 'small_job' && p.status === 'aktiv' && matchesProjectSearch(p.project_number))
     .sort((a, b) => a.project_number.localeCompare(b.project_number, 'sv'))
 )
 
@@ -118,6 +126,12 @@ const bookingsByResource = computed(() => {
 
 function bookingsFor(resourceId: number) {
   return bookingsByResource.value.get(resourceId) ?? []
+}
+
+function bookingLabel(a: { project_id: number; project_number: string; project_name: string }) {
+  const project = projectMap.value.get(a.project_id)
+  if (project && isSmallJob(project)) return projectDisplayLabel(project)
+  return `${a.project_number} – ${a.project_name}`
 }
 
 const listStarts = computed(() =>
@@ -183,6 +197,7 @@ interface OverlayBar {
   label: string
   title: string
   past: boolean
+  smallJob: boolean
   assignmentId: number
 }
 
@@ -272,6 +287,8 @@ function computeOverlay() {
       const left = LBL + startIdx * DAY + 1
       const width = (endIdx - startIdx + 1) * DAY - 2
       const project = projects.value.find((p) => p.id === a.project_id)
+      const smallJob = !!project && isSmallJob(project)
+      const label = project && smallJob ? projectDisplayLabel(project) : `${a.project_number} ${a.project_name}`
       out.push({
         key: `b-${a.id}`,
         left,
@@ -280,9 +297,10 @@ function computeOverlay() {
         height: rowHeight - 6,
         bg: shadeForProject(baseColor, a.project_id),
         color: textColor,
-        label: `${a.project_number} ${a.project_name}`,
-        title: `${a.project_number} – ${a.project_name}`,
+        label,
+        title: label,
         past: isProjectPast(project),
+        smallJob,
         assignmentId: a.id,
       })
     }
@@ -606,7 +624,7 @@ function hideTip() {
               :style="{ background: shadeForProject(colorForResource(r), a.project_id) }"
             />
             <span class="tl-list-booking-main">
-              <span class="tl-list-booking-name">{{ a.project_number }} – {{ a.project_name }}</span>
+              <span class="tl-list-booking-name">{{ bookingLabel(a) }}</span>
               <span class="tl-list-booking-dates">{{ a.start_date }} – {{ a.end_date }}</span>
             </span>
           </button>
@@ -638,24 +656,38 @@ function hideTip() {
       </template>
 
       <aside class="tl-unplanned">
-        <h3 class="tl-unplanned-title">Ej inplanerade projekt</h3>
-        <p v-if="!unplannedProjects.length" class="tl-unplanned-empty">
-          Inga aktiva projekt att planera in.
+        <h3 class="tl-unplanned-title">Att planera</h3>
+        <p v-if="!unplannedRegularProjects.length && !unplannedSmallJobs.length" class="tl-unplanned-empty">
+          Inga aktiva projekt eller ströjobb att planera in.
         </p>
-        <ul v-else class="tl-unplanned-list">
-          <li
-            v-for="p in unplannedProjects"
-            :key="`lu-${p.id}`"
-            class="tl-unplanned-item"
-            @click="openProjectDetail(p.id)"
-          >
-            <span class="tl-unplanned-name">{{ p.project_number }} – {{ p.name }}</span>
-            <span class="tl-unplanned-meta">
-              <span v-if="p.client">{{ p.client }}</span>
-              <span v-if="p.start_date">Prel. start {{ p.start_date }}</span>
-            </span>
-          </li>
-        </ul>
+        <template v-else>
+          <h4 v-if="unplannedRegularProjects.length" class="tl-unplanned-subtitle">Projekt</h4>
+          <ul v-if="unplannedRegularProjects.length" class="tl-unplanned-list">
+            <li
+              v-for="p in unplannedRegularProjects"
+              :key="`lu-${p.id}`"
+              class="tl-unplanned-item"
+              @click="openProjectDetail(p.id)"
+            >
+              <span class="tl-unplanned-name">{{ p.project_number }} – {{ p.name }}</span>
+              <span class="tl-unplanned-meta">
+                <span v-if="p.client">{{ p.client }}</span>
+                <span v-if="p.start_date">Prel. start {{ p.start_date }}</span>
+              </span>
+            </li>
+          </ul>
+          <h4 v-if="unplannedSmallJobs.length" class="tl-unplanned-subtitle">Ströjobb</h4>
+          <ul v-if="unplannedSmallJobs.length" class="tl-unplanned-list">
+            <li
+              v-for="p in unplannedSmallJobs"
+              :key="`luj-${p.id}`"
+              class="tl-unplanned-item"
+              @click="openProjectDetail(p.id)"
+            >
+              <span class="tl-unplanned-name">{{ projectDisplayLabel(p) }}</span>
+            </li>
+          </ul>
+        </template>
       </aside>
     </div>
 
@@ -764,7 +796,7 @@ function hideTip() {
             v-for="b in bars"
             :key="b.key"
             class="tl-bar"
-            :class="{ 'tl-past': b.past }"
+            :class="{ 'tl-past': b.past, 'tl-small-job': b.smallJob }"
             :style="{
               left: b.left + 'px',
               top: b.top + 'px',
@@ -792,25 +824,38 @@ function hideTip() {
       </div>
 
       <aside class="tl-unplanned">
-        <h3 class="tl-unplanned-title">Ej inplanerade projekt</h3>
-        <p v-if="!unplannedProjects.length" class="tl-unplanned-empty">
-          Inga aktiva projekt att planera in.
+        <h3 class="tl-unplanned-title">Att planera</h3>
+        <p v-if="!unplannedRegularProjects.length && !unplannedSmallJobs.length" class="tl-unplanned-empty">
+          Inga aktiva projekt eller ströjobb att planera in.
         </p>
-        <ul v-else class="tl-unplanned-list">
-          <li
-            v-for="p in unplannedProjects"
-            :key="p.id"
-            class="tl-unplanned-item"
-            @click="openProjectDetail(p.id)"
-          >
-            <span class="tl-unplanned-name">{{ p.project_number }} – {{ p.name }}</span>
-            <span class="tl-unplanned-name">{{p.start_date}}</span>
-            <span class="tl-unplanned-meta">
-              <span v-if="p.client">{{ p.client }}</span>
-              <span v-if="p.start_date">Prel. start {{ p.start_date }}</span>
-            </span>
-          </li>
-        </ul>
+        <template v-else>
+          <h4 v-if="unplannedRegularProjects.length" class="tl-unplanned-subtitle">Projekt</h4>
+          <ul v-if="unplannedRegularProjects.length" class="tl-unplanned-list">
+            <li
+              v-for="p in unplannedRegularProjects"
+              :key="p.id"
+              class="tl-unplanned-item"
+              @click="openProjectDetail(p.id)"
+            >
+              <span class="tl-unplanned-name">{{ p.project_number }} – {{ p.name }}</span>
+              <span class="tl-unplanned-meta">
+                <span v-if="p.client">{{ p.client }}</span>
+                <span v-if="p.start_date">Prel. start {{ p.start_date }}</span>
+              </span>
+            </li>
+          </ul>
+          <h4 v-if="unplannedSmallJobs.length" class="tl-unplanned-subtitle">Ströjobb</h4>
+          <ul v-if="unplannedSmallJobs.length" class="tl-unplanned-list">
+            <li
+              v-for="p in unplannedSmallJobs"
+              :key="`uj-${p.id}`"
+              class="tl-unplanned-item"
+              @click="openProjectDetail(p.id)"
+            >
+              <span class="tl-unplanned-name">{{ projectDisplayLabel(p) }}</span>
+            </li>
+          </ul>
+        </template>
       </aside>
     </div>
 

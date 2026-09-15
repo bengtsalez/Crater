@@ -6,11 +6,18 @@ import { pool } from './db'
  *  - `aktiv`              : projektet har inga bokningar i tidslinjen (nyss skapat).
  *  - `planerad`           : projektet har minst en bokning vars slutdatum är idag eller senare.
  *  - `klar_att_fakturera` : projektet har bokningar men den sista har passerat dagens datum.
- *  - `avslutad`           : nås bara manuellt via `status_override` (t.ex. när fakturan är skickad).
+ *  - `avslutad`           : nås normalt bara manuellt via `status_override` (t.ex. när
+ *                           fakturan är skickad) – MED ETT UNDANTAG, se nedan.
  *
- * Automatiken sätter alltså aldrig `avslutad` själv – ett projekt vars planering
- * har passerat blir `klar_att_fakturera` och ligger kvar där tills någon markerar
- * det avslutat.
+ * Automatiken sätter alltså aldrig `avslutad` själv för vanliga projekt – ett
+ * projekt vars planering har passerat blir `klar_att_fakturera` och ligger kvar
+ * där tills någon markerar det avslutat.
+ *
+ * Undantag: ströjobb (`work_type = 'small_job'`) med `billing_type` `warranty`
+ * eller `internal` ska aldrig hamna i "Klar att fakturera" – de faktureras inte.
+ * För dem hoppar automatiken direkt till `avslutad` när sista bokningen passerat.
+ * Vanliga projekt har alltid `billing_type = 'billable'` (kolumnens default), så
+ * den här grenen är ett no-op för all befintlig projektdata.
  *
  * En användare kan tvinga en avvikande status via `projects.status_override`.
  * Overriden ligger kvar tills projektets bokningar ändras (create/update/delete),
@@ -35,8 +42,9 @@ export async function refreshProjectStatuses(orgId: number): Promise<void> {
       SELECT
         p2.id,
         CASE
-          WHEN MAX(a.end_date) IS NULL     THEN 'aktiv'
-          WHEN MAX(a.end_date) < $2        THEN 'klar_att_fakturera'
+          WHEN MAX(a.end_date) IS NULL THEN 'aktiv'
+          WHEN MAX(a.end_date) < $2 THEN
+            CASE WHEN p2.billing_type IN ('warranty', 'internal') THEN 'avslutad' ELSE 'klar_att_fakturera' END
           ELSE 'planerad'
         END AS auto_status
       FROM projects p2

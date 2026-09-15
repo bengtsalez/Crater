@@ -1,4 +1,4 @@
-import type { Resource, Project, Assignment, Task, User, Me, Org, Department } from '../types'
+import type { Resource, Project, Assignment, Task, User, Me, Org, Department, Customer } from '../types'
 import type { Ref } from 'vue'
 
 // Polling-läge – flera användare delar samma data (bokningar, uppgifter m.m.).
@@ -24,6 +24,7 @@ export function useAppData() {
   const assignments = useState<Assignment[]>('assignments', () => [])
   const users = useState<User[]>('users', () => [])
   const departments = useState<Department[]>('departments', () => [])
+  const customers = useState<Customer[]>('customers', () => [])
   const currentUser = useState<Me | null>('currentUser', () => null)
   const org = useState<Org | null>('org', () => null)
   const tasks = useState<Task[]>('tasks', () => [])
@@ -63,14 +64,16 @@ export function useAppData() {
     org.value = me.org
 
     // Sekundär data – behåll tidigare värde vid fel, flagga i loadErrors.
-    const [u, d, t] = await Promise.allSettled([
+    const [u, d, t, cu] = await Promise.allSettled([
       api<User[]>('GET', '/api/users'),
       api<Department[]>('GET', '/api/departments'),
       api<Task[]>('GET', '/api/tasks'),
+      api<Customer[]>('GET', '/api/customers'),
     ])
     assignSettled(u, users, 'users')
     assignSettled(d, departments, 'departments')
     assignSettled(t, tasks, 'tasks')
+    assignSettled(cu, customers, 'customers')
 
     loaded.value = true
   }
@@ -106,6 +109,7 @@ export function useAppData() {
     assignments,
     users,
     departments,
+    customers,
     currentUser,
     org,
     tasks,

@@ -2,7 +2,7 @@
 import type { TabName } from '~/composables/useUiState'
 
 const route = useRoute()
-const { activeTab, projectDetailId } = useUiState()
+const { activeTab, projectDetailId, customerDetailId } = useUiState()
 const { org } = useAppData()
 const { api } = useApi()
 const colorMode = useColorMode()
@@ -20,12 +20,15 @@ const tabs: { name: TabName; label: string; hidden?: boolean }[] = [
   { name: 'analytics', label: 'Översikt' },
   { name: 'month', label: 'Månadskalender', hidden: true },
   { name: 'projects', label: 'Projekt' },
+  { name: 'strojobb', label: 'Ströjobb' },
   { name: 'resources', label: 'Personal' },
+  { name: 'kunder', label: 'Kunder' },
   { name: 'minsida', label: 'Min sida' },
 ]
 
 function selectTab(name: TabName) {
   projectDetailId.value = null
+  customerDetailId.value = null
   activeTab.value = name
 }
 
@@ -45,7 +48,7 @@ async function logout() {
           v-show="!t.hidden"
           :key="t.name"
           class="tab-btn"
-          :class="{ active: activeTab === t.name && projectDetailId === null }"
+          :class="{ active: activeTab === t.name && projectDetailId === null && customerDetailId === null }"
           @click="selectTab(t.name)"
         >
           {{ t.label }}

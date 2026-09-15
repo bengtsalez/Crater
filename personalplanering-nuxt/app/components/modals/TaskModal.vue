@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { activeProjectsForSelect } from '~/utils/analytics'
+import { projectDisplayLabel } from '~/utils/projects'
 
 const { task: modal } = useModals()
 const { projects, loadAll } = useAppData()
@@ -112,7 +113,7 @@ async function remove() {
           <select v-model="form.project_id">
             <option value="">Inget projekt</option>
             <option v-for="p in projectOptions" :key="p.id" :value="p.id">
-              {{ p.project_number }} – {{ p.name }}
+              {{ projectDisplayLabel(p) }}
             </option>
           </select>
         </label>

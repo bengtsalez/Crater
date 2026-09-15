@@ -260,6 +260,7 @@ button.plain.danger:hover { background: #fee2e2; }
   user-select: none;
 }
 .tl-bar:active { cursor: grabbing; }
+.tl-bar.tl-small-job { border-left: 3px solid rgba(255, 255, 255, 0.85); }
 .tl-bar-handle {
   position: absolute;
   top: 0;
@@ -314,6 +315,15 @@ button.plain.danger:hover { background: #fee2e2; }
   color: var(--text-muted);
 }
 .tl-unplanned-empty { font-size: 13px; color: var(--text-muted); }
+.tl-unplanned-subtitle {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+.tl-unplanned-subtitle:first-of-type { margin-top: 0; }
 .tl-unplanned-list {
   list-style: none;
   margin: 0;
@@ -376,6 +386,16 @@ button.plain.danger:hover { background: #fee2e2; }
   cursor: help;
 }
 .tl-past { opacity: 0.3; }
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
 
 .hover-tip {
   position: fixed;

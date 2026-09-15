@@ -46,11 +46,41 @@ export interface Resource {
   color: string | null
 }
 
+export interface Customer {
+  id: number
+  org_id: number
+  name: string
+  customer_type: string | null
+  organization_number: string | null
+  contact_person: string | null
+  email: string | null
+  phone: string | null
+  mobile: string | null
+  address: string | null
+  postal_code: string | null
+  city: string | null
+  billing_address: string | null
+  billing_postal_code: string | null
+  billing_city: string | null
+  billing_email: string | null
+  invoice_reference: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  project_count: number
+  last_project_number: string | null
+  last_project_name: string | null
+  last_project_date: string | null
+}
+
 export interface Project {
   id: number
   project_number: string
   name: string
+  /** @deprecated Legacy spegel av customer_name, skriven av servern. Läs customer_name i stället. */
   client: string | null
+  customer_id: number | null
+  customer_name: string | null
   project_manager_user_id: number | null
   project_manager_username: string | null
   sum: number | null
@@ -60,6 +90,9 @@ export interface Project {
   status_override: string | null
   notes: string | null
   category: string | null
+  work_type: 'project' | 'small_job'
+  billing_type: 'billable' | 'warranty' | 'internal'
+  source_project_id: number | null
 }
 
 export interface Assignment {
