@@ -1,10 +1,12 @@
 import { pool } from '../../utils/db'
-import { requireOrg } from '../../utils/auth'
+import { requireUser } from '../../utils/auth'
 import { CUSTOMER_SELECT } from '../../utils/queries'
 import { apiError } from '../../utils/http'
+import { logActivity } from '../../utils/activity'
 
 export default defineEventHandler(async (event) => {
-  const orgId = requireOrg(event)
+  const user = requireUser(event)
+  const orgId = user.org
   const b = await readBody(event)
   const name = String(b?.name ?? '').trim()
   if (name.length < 1 || name.length > 200) {
@@ -42,8 +44,23 @@ export default defineEventHandler(async (event) => {
   if (!inserted.rows[0]) {
     throw apiError(409, 'En kund med det namnet finns redan.')
   }
+  const customerId = inserted.rows[0].id
 
-  const { rows } = await pool.query(`${CUSTOMER_SELECT} WHERE c.id = $1`, [inserted.rows[0].id])
+  await logActivity(
+    pool,
+    {
+      orgId,
+      userId: user.sub,
+      entityType: 'customer',
+      entityId: customerId,
+      customerId,
+      eventType: 'customer.created',
+      metadata: { name, customer_type: b.customer_type || null, organization_number: b.organization_number || null, city: b.city || null },
+    },
+    { bestEffort: true }
+  )
+
+  const { rows } = await pool.query(`${CUSTOMER_SELECT} WHERE c.id = $1`, [customerId])
   setResponseStatus(event, 201)
   return rows[0]
 })

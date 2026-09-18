@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { lineItem: modal } = useModals()
 const { refresh } = useProjectDetail()
+const { refresh: refreshActivity } = useProjectActivity()
 const { api } = useApi()
 const toast = useToast()
 const isMobile = useIsMobile()
@@ -63,6 +64,7 @@ async function submit() {
     }
     open.value = false
     await refresh()
+    await refreshActivity()
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
   } finally {
@@ -78,6 +80,7 @@ async function remove() {
     await api('DELETE', `/api/line-items/${form.id}`)
     open.value = false
     await refresh()
+    await refreshActivity()
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
   } finally {

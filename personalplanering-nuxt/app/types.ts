@@ -133,3 +133,16 @@ export interface LineItem {
   notes: string | null
   created_at: string
 }
+
+export interface ActivityEvent {
+  id: number
+  user_id: number | null
+  actor_username: string | null
+  entity_type: string
+  entity_id: number
+  project_id: number | null
+  customer_id: number | null
+  event_type: string
+  metadata: Record<string, unknown>
+  created_at: string
+}

@@ -5,6 +5,7 @@ import { projectDisplayLabel } from '~/utils/projects'
 const { task: modal } = useModals()
 const { projects, loadAll } = useAppData()
 const { refresh } = useProjectDetail()
+const { refresh: refreshActivity } = useProjectActivity()
 const { projectDetailId } = useUiState()
 const { api } = useApi()
 const toast = useToast()
@@ -79,7 +80,10 @@ async function submit() {
     }
     open.value = false
     await loadAll()
-    if (projectDetailId.value) await refresh()
+    if (projectDetailId.value) {
+      await refresh()
+      await refreshActivity()
+    }
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
   } finally {
@@ -95,7 +99,10 @@ async function remove() {
     await api('DELETE', `/api/tasks/${form.id}`)
     open.value = false
     await loadAll()
-    if (projectDetailId.value) await refresh()
+    if (projectDetailId.value) {
+      await refresh()
+      await refreshActivity()
+    }
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
   } finally {

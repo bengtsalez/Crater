@@ -6,12 +6,21 @@ const { customers, projects } = useAppData()
 const { labelFor: departmentLabel } = useDepartments()
 const { customerDetailId, customerDetailBackLabel, closeCustomerDetail, openProjectDetail } = useUiState()
 const { openCustomerModal } = useModals()
+const { activities, refresh: refreshActivity } = useCustomerActivity()
 
 const customer = computed(() => customers.value.find((c) => c.id === customerDetailId.value) || null)
 
 watch(customer, (c) => {
   if (customerDetailId.value && !c) closeCustomerDetail()
 })
+
+watch(
+  customerDetailId,
+  (id) => {
+    if (id) refreshActivity()
+  },
+  { immediate: true }
+)
 
 const linkedProjects = computed(() =>
   customer.value
@@ -91,5 +100,8 @@ const totalSum = computed(() => linkedProjects.value.reduce((sum, p) => sum + (p
         </tr>
       </tbody>
     </table>
+
+    <h3 class="group-title">Aktivitet</h3>
+    <ActivityFeed :activities="activities" />
   </section>
 </template>

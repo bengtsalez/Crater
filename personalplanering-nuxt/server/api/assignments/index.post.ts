@@ -1,12 +1,14 @@
 import { pool } from '../../utils/db'
-import { requireOrg } from '../../utils/auth'
+import { requireUser } from '../../utils/auth'
 import { ASSIGNMENT_SELECT } from '../../utils/queries'
 import { apiError } from '../../utils/http'
 import { clearStatusOverride, refreshProjectStatuses } from '../../utils/projectStatus'
 import { syncProjectDatesToAssignments } from '../../utils/projectDates'
+import { logActivity } from '../../utils/activity'
 
 export default defineEventHandler(async (event) => {
-  const orgId = requireOrg(event)
+  const user = requireUser(event)
+  const orgId = user.org
   const b = await readBody(event)
   const { resource_id, project_id, start_date, end_date, note, sync_project_dates } = b || {}
   if (!resource_id || !project_id || !start_date || !end_date) {
@@ -18,11 +20,11 @@ export default defineEventHandler(async (event) => {
 
   const refs = await pool.query(
     `SELECT
-       (SELECT 1 FROM resources WHERE id = $1 AND org_id = $3) AS has_resource,
+       (SELECT name FROM resources WHERE id = $1 AND org_id = $3) AS resource_name,
        (SELECT 1 FROM projects WHERE id = $2 AND org_id = $3) AS has_project`,
     [resource_id, project_id, orgId]
   )
-  if (!refs.rows[0].has_resource || !refs.rows[0].has_project) {
+  if (!refs.rows[0].resource_name || !refs.rows[0].has_project) {
     throw apiError(400, 'Ogiltig referens.')
   }
 
@@ -35,6 +37,20 @@ export default defineEventHandler(async (event) => {
   await clearStatusOverride(orgId, project_id)
   if (sync_project_dates) await syncProjectDatesToAssignments(orgId, project_id)
   await refreshProjectStatuses(orgId)
+
+  await logActivity(
+    pool,
+    {
+      orgId,
+      userId: user.sub,
+      entityType: 'assignment',
+      entityId: inserted.rows[0].id,
+      projectId: project_id,
+      eventType: 'assignment.created',
+      metadata: { resource_name: refs.rows[0].resource_name, start_date, end_date },
+    },
+    { bestEffort: true }
+  )
 
   const { rows } = await pool.query(`${ASSIGNMENT_SELECT} WHERE a.id = $1`, [inserted.rows[0].id])
   setResponseStatus(event, 201)

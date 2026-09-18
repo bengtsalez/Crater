@@ -10,6 +10,7 @@ const { projects, assignments, customers, currentUser, loadAll } = useAppData()
 const { projectDetailId, projectDetailBackLabel, closeProjectDetail, openProjectDetail, openCustomerDetail } = useUiState()
 const { openProjectModal, openLineItemModal, openTaskModal } = useModals()
 const { lineItems, tasks, refresh } = useProjectDetail()
+const { activities, refresh: refreshActivity } = useProjectActivity()
 const { api } = useApi()
 const toast = useToast()
 
@@ -35,7 +36,10 @@ function relatedJobDate(job: Project) {
 watch(
   projectDetailId,
   (id) => {
-    if (id) refresh()
+    if (id) {
+      refresh()
+      refreshActivity()
+    }
   },
   { immediate: true }
 )
@@ -71,6 +75,7 @@ async function deleteLineItem(li: LineItem) {
   try {
     await api('DELETE', `/api/line-items/${li.id}`)
     await refresh()
+    await refreshActivity()
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
   }
@@ -82,6 +87,7 @@ async function toggleTask(t: Task) {
     await api('PUT', `/api/tasks/${t.id}`, { status: newStatus })
     await loadAll()
     await refresh()
+    await refreshActivity()
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
   }
@@ -93,6 +99,7 @@ async function deleteTask(t: Task) {
     await api('DELETE', `/api/tasks/${t.id}`)
     await loadAll()
     await refresh()
+    await refreshActivity()
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
   }
@@ -231,5 +238,8 @@ async function deleteTask(t: Task) {
         @delete="deleteTask"
       />
     </div>
+
+    <h3 class="group-title">Aktivitet</h3>
+    <ActivityFeed :activities="activities" />
   </section>
 </template>

@@ -4,6 +4,7 @@ import type { Customer } from '~/types'
 const { customer: modal } = useModals()
 const { currentUser, loadAll } = useAppData()
 const { api } = useApi()
+const { refresh: refreshActivity } = useCustomerActivity()
 const toast = useToast()
 const isMobile = useIsMobile()
 
@@ -97,6 +98,7 @@ async function submit() {
     }
     open.value = false
     await loadAll()
+    await refreshActivity()
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
   } finally {

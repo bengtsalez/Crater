@@ -43,3 +43,9 @@ export const TASK_SELECT = `
   FROM tasks t
   LEFT JOIN projects p ON p.id = t.project_id AND p.org_id = t.org_id
 `
+
+export const ACTIVITY_SELECT = `
+  SELECT ae.*, u.username AS actor_username
+  FROM activity_events ae
+  LEFT JOIN users u ON u.id = ae.user_id AND u.org_id = ae.org_id
+`

@@ -6,6 +6,7 @@ const { users, loadAll } = useAppData()
 const { options: departmentOptions } = useDepartments()
 const { api } = useApi()
 const { remove: removeProject } = useProjectActions()
+const { refresh: refreshActivity } = useProjectActivity()
 const toast = useToast()
 const isMobile = useIsMobile()
 
@@ -110,6 +111,7 @@ async function submit() {
     }
     open.value = false
     await loadAll()
+    await refreshActivity()
     if (created && modal.value.onCreated) modal.value.onCreated(created)
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })

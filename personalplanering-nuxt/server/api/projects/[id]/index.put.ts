@@ -1,16 +1,19 @@
 import { pool } from '../../../utils/db'
-import { requireOrg } from '../../../utils/auth'
+import { requireUser } from '../../../utils/auth'
 import { assertDepartmentKey } from '../../../utils/departments'
 import { resolveCustomer } from '../../../utils/customers'
 import { PROJECT_SELECT } from '../../../utils/queries'
 import { apiError } from '../../../utils/http'
 import { refreshProjectStatuses } from '../../../utils/projectStatus'
 import { BILLING_TYPES } from '../../../utils/projectTypes'
+import { logActivity } from '../../../utils/activity'
+import { buildProjectUpdateEvent, type ProjectDiffRow } from '../../../utils/activityDiff'
 
 const STATUS_VALUES = ['aktiv', 'planerad', 'klar_att_fakturera', 'avslutad']
 
 export default defineEventHandler(async (event) => {
-  const orgId = requireOrg(event)
+  const user = requireUser(event)
+  const orgId = user.org
   const id = getRouterParam(event, 'id')
   const existingResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND org_id = $2', [id, orgId])
   const existing = existingResult.rows[0]
@@ -23,9 +26,18 @@ export default defineEventHandler(async (event) => {
 
   const newPm =
     b.project_manager_user_id !== undefined ? b.project_manager_user_id : existing.project_manager_user_id
+  let newPmUsername: string | null = null
   if (newPm) {
-    const { rowCount } = await pool.query('SELECT 1 FROM users WHERE id = $1 AND org_id = $2', [newPm, orgId])
-    if (!rowCount) throw apiError(400, 'Ogiltig projektledare.')
+    const { rows } = await pool.query('SELECT username FROM users WHERE id = $1 AND org_id = $2', [newPm, orgId])
+    if (!rows[0]) throw apiError(400, 'Ogiltig projektledare.')
+    newPmUsername = rows[0].username
+  }
+  // Bara för aktivitetsloggens diff – "gammal PM"-namnet syns inte annars om
+  // den nya raden bara har det nya id:t.
+  let oldPmUsername: string | null = null
+  if (existing.project_manager_user_id) {
+    const { rows } = await pool.query('SELECT username FROM users WHERE id = $1', [existing.project_manager_user_id])
+    oldPmUsername = rows[0]?.username ?? null
   }
 
   let billingType = existing.billing_type
@@ -95,6 +107,44 @@ export default defineEventHandler(async (event) => {
         orgId,
       ]
     )
+
+    const existingDiff: ProjectDiffRow = {
+      name: existing.name,
+      start_date: existing.start_date,
+      end_date: existing.end_date,
+      sum: existing.sum,
+      notes: existing.notes,
+      category: existing.category,
+      billing_type: existing.billing_type,
+      status_override: existing.status_override,
+      customer_name: existing.client,
+      project_manager_username: oldPmUsername,
+    }
+    const nextDiff: ProjectDiffRow = {
+      name: b.name ?? existing.name,
+      start_date: b.start_date ?? existing.start_date,
+      end_date: b.end_date ?? existing.end_date,
+      sum: b.sum === '' ? null : b.sum ?? existing.sum,
+      notes: b.notes ?? existing.notes,
+      category: b.category !== undefined ? b.category || null : existing.category,
+      billing_type: billingType,
+      status_override: override,
+      customer_name: customer.name,
+      project_manager_username: newPmUsername,
+    }
+    const updateEvent = buildProjectUpdateEvent(existingDiff, nextDiff)
+    if (updateEvent) {
+      await logActivity(conn, {
+        orgId,
+        userId: user.sub,
+        entityType: 'project',
+        entityId: Number(id),
+        projectId: Number(id),
+        eventType: updateEvent.eventType,
+        metadata: updateEvent.metadata,
+      })
+    }
+
     await conn.query('COMMIT')
   } catch (err) {
     await conn.query('ROLLBACK')

@@ -1,15 +1,17 @@
 import { pool, nextProjectNumber, nextSmallJobNumber } from '../../utils/db'
-import { requireOrg } from '../../utils/auth'
+import { requireUser } from '../../utils/auth'
 import { assertDepartmentKey } from '../../utils/departments'
 import { resolveCustomer } from '../../utils/customers'
 import { PROJECT_SELECT } from '../../utils/queries'
 import { apiError } from '../../utils/http'
 import { WORK_TYPES, BILLING_TYPES } from '../../utils/projectTypes'
+import { logActivity } from '../../utils/activity'
 
 const STATUS_VALUES = ['aktiv', 'planerad', 'klar_att_fakturera', 'avslutad']
 
 export default defineEventHandler(async (event) => {
-  const orgId = requireOrg(event)
+  const user = requireUser(event)
+  const orgId = user.org
   const b = await readBody(event)
   const {
     name,
@@ -92,6 +94,24 @@ export default defineEventHandler(async (event) => {
       ]
     )
     projectId = inserted.rows[0].id
+    await logActivity(conn, {
+      orgId,
+      userId: user.sub,
+      entityType: 'project',
+      entityId: projectId,
+      projectId,
+      eventType: workType === 'small_job' ? 'small_job.created' : 'project.created',
+      metadata: {
+        name,
+        project_number,
+        work_type: workType,
+        billing_type: billingType,
+        sum: sum === '' || sum === undefined ? null : sum,
+        customer_name: customer.name,
+        start_date: start_date || null,
+        end_date: end_date || null,
+      },
+    })
     await conn.query('COMMIT')
   } catch (err) {
     await conn.query('ROLLBACK')

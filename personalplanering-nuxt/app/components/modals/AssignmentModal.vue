@@ -5,6 +5,7 @@ import { projectDisplayLabel } from '~/utils/projects'
 const { assignment: modal, openProjectModal, openQuickJobModal } = useModals()
 const { resources, projects, loadAll } = useAppData()
 const { api } = useApi()
+const { refresh: refreshActivity } = useProjectActivity()
 const toast = useToast()
 const isMobile = useIsMobile()
 
@@ -118,6 +119,7 @@ async function submit() {
     }
     open.value = false
     await loadAll()
+    await refreshActivity()
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
   } finally {
@@ -133,6 +135,7 @@ async function remove() {
     await api('DELETE', `/api/assignments/${form.id}`)
     open.value = false
     await loadAll()
+    await refreshActivity()
   } catch (err) {
     toast.add({ title: (err as Error).message, color: 'error' })
   } finally {

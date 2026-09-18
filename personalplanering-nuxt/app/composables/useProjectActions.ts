@@ -9,12 +9,14 @@ import type { Project } from '../types'
 export function useProjectActions() {
   const { api } = useApi()
   const { loadAll } = useAppData()
+  const { refresh: refreshActivity } = useProjectActivity()
   const toast = useToast()
 
   async function run(fn: () => Promise<unknown>): Promise<boolean> {
     try {
       await fn()
       await loadAll()
+      await refreshActivity()
       return true
     } catch (err) {
       toast.add({ title: (err as Error).message, color: 'error' })
