@@ -13,7 +13,8 @@ export default defineEventHandler(async (event) => {
   const { rows } = await pool.query('SELECT * FROM users WHERE username = $1', [username])
   const user = rows[0]
   const valid = user && (await bcrypt.compare(password, user.password_hash))
-  if (!valid) {
+  // Avaktiverat konto ger samma svar som fel lösenord – avslöja inte att kontot finns.
+  if (!valid || user.active === false) {
     throw apiError(401, 'Fel användarnamn eller lösenord.')
   }
 
@@ -24,5 +25,7 @@ export default defineEventHandler(async (event) => {
     role: user.role,
   })
   setSessionCookie(event, token)
-  return { ok: true }
+  // Rollen styr bara vart klienten navigerar (/personal eller /); behörigheten
+  // avgörs alltid av servern på varje anrop.
+  return { ok: true, role: user.role }
 })

@@ -37,3 +37,24 @@ export function errorMessage(err: unknown, fallback: string): string {
 
   return fallback
 }
+
+// Maskinläsbar felkod från serverns `data.code` (t.ex. 'no_resource').
+export function errorCode(err: unknown): string | null {
+  const body = (err as { data?: unknown } | null | undefined)?.data as NitroErrorBody | undefined
+  const nested = body && typeof body === 'object' ? (body.data as { code?: unknown } | undefined) : undefined
+  if (nested && typeof nested === 'object' && typeof nested.code === 'string') return nested.code
+  const direct = body && typeof body === 'object' ? (body as { code?: unknown }).code : undefined
+  return typeof direct === 'string' ? direct : null
+}
+
+// Fel från useApi() – bär med HTTP-status och ev. felkod så att vyer kan
+// skilja t.ex. 404 och "kontot saknar resurskoppling" från övriga fel.
+export class ApiError extends Error {
+  status: number | null
+  code: string | null
+  constructor(message: string, status: number | null, code: string | null) {
+    super(message)
+    this.status = status
+    this.code = code
+  }
+}

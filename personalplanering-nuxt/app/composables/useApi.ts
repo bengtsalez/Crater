@@ -32,12 +32,16 @@ export function useApi() {
       const status = (err as FetchError)?.status ?? (err as FetchError)?.statusCode
       if (status === 401) {
         if (import.meta.client) {
-          await navigateTo('/login')
+          // Sessionen är ogiltig (utloggad, avaktiverad …) – släng all cachad
+          // data innan omdirigeringen så inget ligger kvar till nästa konto.
+          const toPersonal = window.location.pathname.startsWith('/personal')
+          resetClientState()
+          await navigateTo(toPersonal ? '/personal/login' : '/login')
         }
         // Stoppa vidare bearbetning tills omdirigeringen sker.
         return new Promise<T>(() => {})
       }
-      throw new Error(messageFromError(err))
+      throw new ApiError(messageFromError(err), status ?? null, errorCode(err))
     }
   }
 

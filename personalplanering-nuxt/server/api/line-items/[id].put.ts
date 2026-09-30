@@ -1,11 +1,11 @@
 import { pool } from '../../utils/db'
-import { requireUser } from '../../utils/auth'
+import { requireInternal } from '../../utils/auth'
 import { apiError } from '../../utils/http'
 import { logActivity } from '../../utils/activity'
 import { buildLineItemUpdateEvent, type LineItemDiffRow } from '../../utils/activityDiff'
 
 export default defineEventHandler(async (event) => {
-  const user = requireUser(event)
+  const user = requireInternal(event)
   const orgId = user.org
   const id = getRouterParam(event, 'id')
   const existingResult = await pool.query('SELECT * FROM project_line_items WHERE id = $1 AND org_id = $2', [id, orgId])

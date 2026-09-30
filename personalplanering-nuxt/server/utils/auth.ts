@@ -1,16 +1,23 @@
 import jwt from 'jsonwebtoken'
 import type { H3Event } from 'h3'
+import { pool } from './db'
+import { findEmployeeResource } from './employeeAccess'
 
 export const SESSION_COOKIE = 'session'
 export const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000 // 30 dagar
 
-export type UserRole = 'admin' | 'member'
+// 'employee' = personalkonto (fältpersonal). Ser bara /personal-vyn och får
+// bara anropa /api/me, /api/logout och /api/employee/** (se server/middleware/auth.ts).
+export type UserRole = 'admin' | 'member' | 'employee'
 
 export interface SessionPayload {
   sub: number
   username: string
   org: number
   role: UserRole
+  // Kopplad personalresurs (users.resource_id). Sätts av auth-middlewaren från
+  // DB på varje request – JWT:ns värde används aldrig för behörighet.
+  resourceId?: number | null
 }
 
 function secret(): string {
@@ -58,9 +65,48 @@ export function requireUser(event: H3Event): SessionPayload {
   return user
 }
 
-// Aktuell organisation för en skyddad route. All flerkund-scoping utgår härifrån.
+// Intern användare (admin/member) – allt utom personalkonton. Middlewaren
+// stoppar redan personal från interna endpoints; detta är defense-in-depth
+// så att en route som av misstag hamnar utanför middlewarens skydd ändå är stängd.
+export function requireInternal(event: H3Event): SessionPayload {
+  const user = requireUser(event)
+  if (user.role === 'employee') {
+    throw createError({ statusCode: 403, data: { error: 'Saknar behörighet.' } })
+  }
+  return user
+}
+
+// Aktuell organisation för en skyddad (intern) route. All flerkund-scoping utgår härifrån.
 export function requireOrg(event: H3Event): number {
-  return requireUser(event).org
+  return requireInternal(event).org
+}
+
+export interface EmployeeContext {
+  userId: number
+  org: number
+  resourceId: number
+  username: string
+}
+
+// Personalkonto med giltig resurskoppling. `resourceId` kommer från DB via
+// middlewaren; här verifieras dessutom att resursen finns i samma org.
+// Utan koppling: 403 med code 'no_resource' så klienten kan visa ett tydligt besked.
+export async function requireEmployee(event: H3Event): Promise<EmployeeContext> {
+  const user = requireUser(event)
+  if (user.role !== 'employee') {
+    throw createError({ statusCode: 403, data: { error: 'Endast för personalkonton.' } })
+  }
+  const resource = user.resourceId ? await findEmployeeResource(pool, user.org, user.resourceId) : null
+  if (!resource) {
+    throw createError({
+      statusCode: 403,
+      data: {
+        error: 'Ditt konto är inte kopplat till någon personalresurs. Kontakta din arbetsledare.',
+        code: 'no_resource',
+      },
+    })
+  }
+  return { userId: user.sub, org: user.org, resourceId: resource.id, username: user.username }
 }
 
 // Kräver admin-roll (org-ägare). 403 annars.

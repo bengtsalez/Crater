@@ -1,10 +1,14 @@
-export type UserRole = 'admin' | 'member'
+export type UserRole = 'admin' | 'member' | 'employee'
 
 export interface User {
   id: number
   username: string
   email?: string | null
   role?: UserRole
+  active?: boolean
+  phone?: string | null
+  resource_id?: number | null
+  resource_name?: string | null
 }
 
 export interface Org {
@@ -25,6 +29,8 @@ export interface Me {
   id: number
   username: string
   role: UserRole
+  /** Kopplad personalresurs – bara för personalkonton. */
+  resource: { id: number; name: string } | null
   org: Org | null
 }
 
@@ -93,6 +99,7 @@ export interface Project {
   work_type: 'project' | 'small_job'
   billing_type: 'billable' | 'warranty' | 'internal'
   source_project_id: number | null
+  site_address?: string | null
 }
 
 export interface Assignment {
@@ -121,6 +128,7 @@ export interface Task {
   project_number: string | null
   project_name: string | null
   username?: string
+  user_role?: UserRole
 }
 
 export interface LineItem {
@@ -145,4 +153,52 @@ export interface ActivityEvent {
   event_type: string
   metadata: Record<string, unknown>
   created_at: string
+}
+
+export interface StaffInfo {
+  instructions: string | null
+  published: boolean
+  updated_at: string | null
+  updated_by_username: string | null
+}
+
+// ---- Personalvyn (/personal) – svar från /api/employee/** ----
+
+export interface EmployeeJob {
+  assignment_id: number
+  start_date: string
+  end_date: string
+  note: string | null
+  project_id: number
+  project_number: string
+  project_name: string
+  site_address: string | null
+  work_type: 'project' | 'small_job'
+  remaining_tasks: number
+}
+
+export interface EmployeeTask {
+  id: number
+  title: string
+  notes: string | null
+  status: string
+  due_date: string | null
+  completed_at: string | null
+}
+
+export interface EmployeeJobDetail {
+  project: { id: number; project_number: string; name: string; site_address: string | null; work_type: string }
+  my_bookings: { id: number; start_date: string; end_date: string; note: string | null }[]
+  project_manager: { username: string; phone: string | null; email: string | null } | null
+  customer: {
+    name: string | null
+    contact_person: string | null
+    phone: string | null
+    mobile: string | null
+    address: string | null
+    postal_code: string | null
+    city: string | null
+  } | null
+  staff_info: { instructions: string; updated_at: string; updated_by: string | null } | null
+  tasks: EmployeeTask[]
 }

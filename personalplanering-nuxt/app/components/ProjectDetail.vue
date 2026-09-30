@@ -6,7 +6,7 @@ import { STATUS_LABELS } from '~/utils/constants'
 import { BILLING_TYPE_LABELS } from '~/utils/projects'
 import { projectCustomerName } from '~/utils/customers'
 
-const { projects, assignments, customers, currentUser, loadAll } = useAppData()
+const { projects, assignments, customers, currentUser, users, loadAll } = useAppData()
 const { projectDetailId, projectDetailBackLabel, closeProjectDetail, openProjectDetail, openCustomerDetail } = useUiState()
 const { openProjectModal, openLineItemModal, openTaskModal } = useModals()
 const { lineItems, tasks, refresh } = useProjectDetail()
@@ -66,9 +66,19 @@ const staff = computed(() =>
     .sort((a, b) => a.start_date.localeCompare(b.start_date))
 )
 
-function isOwn(t: Task) {
-  return !!currentUser.value && t.user_id === currentUser.value.id
+// Egna uppgifter + uppgifter tilldelade personalkonton får hanteras här
+// (samma regel som servern tillämpar i tasks/[id].put|delete).
+function canManage(t: Task) {
+  return (!!currentUser.value && t.user_id === currentUser.value.id) || t.user_role === 'employee'
 }
+
+// Personalkonto kopplat till en inplanerad resurs (för "Konto"-kolumnen).
+function accountFor(resourceId: number) {
+  return users.value.find((u) => u.role === 'employee' && u.resource_id === resourceId) || null
+}
+
+// Interna uppgifter i "Uppgifter"; personaluppgifter visas under "Information till personal".
+const internalTasks = computed(() => tasks.value.filter((t) => t.user_role !== 'employee'))
 
 async function deleteLineItem(li: LineItem) {
   if (!confirm('Ta bort raden?')) return
@@ -208,17 +218,25 @@ async function deleteTask(t: Task) {
 
     <h3 class="group-title">Inplanerad personal</h3>
     <table class="data-table">
-      <thead><tr><th>Namn</th><th>Typ</th><th>Från</th><th>Till</th></tr></thead>
+      <thead><tr><th>Namn</th><th>Typ</th><th>Från</th><th>Till</th><th>Personalkonto</th></tr></thead>
       <tbody>
-        <tr v-if="!staff.length"><td colspan="4" class="empty-state">Ingen personal inplanerad ännu.</td></tr>
+        <tr v-if="!staff.length"><td colspan="5" class="empty-state">Ingen personal inplanerad ännu.</td></tr>
         <tr v-for="a in staff" :key="a.id">
           <td data-label="Namn">{{ a.resource_name }}</td>
           <td data-label="Typ">{{ a.resource_type === 'anstalld' ? 'Anställd' : 'Underentreprenör' }}</td>
           <td data-label="Från">{{ a.start_date }}</td>
           <td data-label="Till">{{ a.end_date }}</td>
+          <td data-label="Personalkonto">
+            <template v-if="accountFor(a.resource_id)">
+              {{ accountFor(a.resource_id)!.username }}<span v-if="accountFor(a.resource_id)!.active === false" class="hint"> (avaktiverat)</span>
+            </template>
+            <span v-else class="hint">Saknar konto</span>
+          </td>
         </tr>
       </tbody>
     </table>
+
+    <ProjectStaffInfo :project-id="project.id" @toggle-task="toggleTask" @delete-task="deleteTask" />
 
     <div class="toolbar">
       <h3 class="group-title" style="margin: 0">Uppgifter</h3>
@@ -226,13 +244,13 @@ async function deleteTask(t: Task) {
       <button class="plain primary" @click="openTaskModal(null, project.id)">+ Ny uppgift</button>
     </div>
     <div class="task-list">
-      <div v-if="!tasks.length" class="empty-state">Inga uppgifter kopplade till projektet ännu.</div>
+      <div v-if="!internalTasks.length" class="empty-state">Inga uppgifter kopplade till projektet ännu.</div>
       <TaskRow
-        v-for="t in tasks"
+        v-for="t in internalTasks"
         :key="t.id"
         :task="t"
         show-owner
-        :read-only="!isOwn(t)"
+        :read-only="!canManage(t)"
         @toggle="toggleTask"
         @edit="openTaskModal($event)"
         @delete="deleteTask"

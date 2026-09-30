@@ -24,7 +24,8 @@ const toggleLabel = computed(() => (props.task.status === 'avslutad' ? 'Återöp
     <div class="task-main">
       <div class="task-title">{{ task.title }}</div>
       <div class="task-meta">
-        <span v-if="showOwner" class="task-owner">{{ task.username }}</span>
+        <span v-if="showOwner" class="task-owner">{{ task.username }}<template v-if="task.user_role === 'employee'"> (personal)</template></span>
+        <span v-if="showOwner" class="badge" :class="task.status === 'avslutad' ? 'aktiv' : 'planerad'">{{ task.status === 'avslutad' ? 'Klar' : 'Ej klar' }}</span>
         <span v-else class="task-project">
           <template v-if="task.project_id">{{ task.project_number }} – {{ task.project_name }}</template>
           <span v-else class="task-no-project">Inget projekt</span>

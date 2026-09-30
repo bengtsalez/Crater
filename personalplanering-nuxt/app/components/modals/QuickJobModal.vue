@@ -4,11 +4,16 @@ import { activeProjectsForSelect } from '~/utils/analytics'
 import { BILLING_TYPE_LABELS } from '~/utils/projects'
 
 const { quickJob: modal, openAssignmentModal } = useModals()
-const { users, projects, loadAll } = useAppData()
+const { users, internalUsers, projects, loadAll } = useAppData()
 const { options: departmentOptions } = useDepartments()
 const { api } = useApi()
 const toast = useToast()
 const isMobile = useIsMobile()
+
+// Interna konton + ev. redan vald projektledare (så ett avaktiverat konto inte försvinner ur valet).
+const pmOptions = computed(() =>
+  users.value.filter((u) => internalUsers.value.includes(u) || u.id === Number(form.project_manager_user_id))
+)
 
 const open = computed({
   get: () => modal.value.open,
@@ -30,6 +35,7 @@ const form = reactive({
   project_manager_user_id: '' as number | '',
   source_project_id: null as number | null,
   notes: '',
+  site_address: '',
 })
 
 const relatedProjectOptions = computed(() =>
@@ -53,6 +59,7 @@ watch(
       project_manager_user_id: '',
       source_project_id: null,
       notes: '',
+      site_address: '',
     })
   }
 )
@@ -70,6 +77,7 @@ async function submit() {
     project_manager_user_id: form.project_manager_user_id ? Number(form.project_manager_user_id) : null,
     source_project_id: form.source_project_id,
     notes: form.notes.trim(),
+    site_address: form.site_address.trim(),
   }
   try {
     const created = await api<Project>('POST', '/api/projects', payload)
@@ -125,7 +133,7 @@ function planNow() {
         <label>Projektledare
           <select v-model="form.project_manager_user_id">
             <option value="">Ingen vald</option>
-            <option v-for="u in users" :key="u.id" :value="u.id">{{ u.username }}</option>
+            <option v-for="u in pmOptions" :key="u.id" :value="u.id">{{ u.username }}</option>
           </select>
         </label>
         <label>Relaterat projekt
@@ -138,7 +146,8 @@ function planNow() {
             :clear="true"
           />
         </label>
-        <label>Anteckning<textarea v-model="form.notes" rows="2" /></label>
+        <label>Arbetsplatsens adress<input v-model="form.site_address" placeholder="Gata, postnummer, ort" autocomplete="off"></label>
+        <label>Anteckning (intern)<textarea v-model="form.notes" rows="2" /></label>
         <div class="modal-actions">
           <div class="spacer" />
           <button type="button" class="plain ghost" @click="open = false">Avbryt</button>

@@ -52,6 +52,7 @@ export interface ProjectDiffRow {
   status_override: string | null
   customer_name: string | null
   project_manager_username: string | null
+  site_address?: string | null
 }
 
 export function buildProjectUpdateEvent(
@@ -69,6 +70,7 @@ export function buildProjectUpdateEvent(
     'status_override',
     'customer_name',
     'project_manager_username',
+    'site_address',
   ])
   if (!changes.length) return null
   return { eventType: 'project.updated', metadata: { changes } }

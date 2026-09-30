@@ -3,7 +3,7 @@ import { activeProjectsForSelect } from '~/utils/analytics'
 import { projectDisplayLabel } from '~/utils/projects'
 
 const { task: modal } = useModals()
-const { projects, loadAll } = useAppData()
+const { projects, assignments, employeeUsers, currentUser, loadAll } = useAppData()
 const { refresh } = useProjectDetail()
 const { refresh: refreshActivity } = useProjectActivity()
 const { projectDetailId } = useUiState()
@@ -29,7 +29,22 @@ const form = reactive({
   due_date: '',
   notes: '',
   status: 'aktiv',
+  user_id: '' as number | '',
 })
+
+// Mottagare: jag själv eller ett personalkonto. Personal ser bara uppgifter i
+// arbeten de är inplanerade på – markera de som inte är det.
+const assigneeOptions = computed(() => {
+  const pid = Number(form.project_id) || null
+  return employeeUsers.value
+    .filter((u) => u.active !== false || u.id === Number(form.user_id))
+    .map((u) => {
+      const booked = !!pid && !!u.resource_id && assignments.value.some((a) => a.project_id === pid && a.resource_id === u.resource_id)
+      const suffix = !u.resource_id ? ' (saknar resurskoppling)' : pid && !booked ? ' (ej inplanerad – ser inte uppgiften)' : ''
+      return { id: u.id, label: `${u.resource_name || u.username}${suffix}` }
+    })
+})
+const assigningToEmployee = computed(() => !!form.user_id && form.user_id !== currentUser.value?.id)
 
 const projectOptions = computed(() =>
   activeProjectsForSelect(projects.value, modal.value.task?.project_id ?? null)
@@ -48,6 +63,7 @@ watch(
         due_date: t.due_date || '',
         notes: t.notes || '',
         status: t.status,
+        user_id: t.user_id,
       })
     } else {
       Object.assign(form, {
@@ -57,6 +73,7 @@ watch(
         due_date: '',
         notes: '',
         status: 'aktiv',
+        user_id: modal.value.defaultUserId ?? currentUser.value?.id ?? '',
       })
     }
   }
@@ -71,6 +88,7 @@ async function submit() {
     due_date: form.due_date,
     notes: form.notes.trim(),
     status: form.status,
+    user_id: form.user_id || undefined,
   }
   try {
     if (form.id) {
@@ -124,8 +142,15 @@ async function remove() {
             </option>
           </select>
         </label>
-        <label>Förfallodatum<UiDateField v-model="form.due_date" /></label>
-        <label>Anteckning<textarea v-model="form.notes" rows="2" /></label>
+        <label v-if="assigneeOptions.length || assigningToEmployee">Tilldela
+          <select v-model="form.user_id">
+            <option :value="currentUser?.id ?? ''">Mig själv</option>
+            <option v-for="o in assigneeOptions" :key="o.id" :value="o.id">{{ o.label }}</option>
+          </select>
+        </label>
+        <p v-if="assigningToEmployee && !form.project_id" class="hint">Uppgifter till personal måste kopplas till ett projekt.</p>
+        <label>{{ assigningToEmployee ? 'Deadline' : 'Förfallodatum' }}<UiDateField v-model="form.due_date" /></label>
+        <label>{{ assigningToEmployee ? 'Instruktion (syns för personalen)' : 'Anteckning' }}<textarea v-model="form.notes" rows="3" /></label>
         <label>Status
           <select v-model="form.status">
             <option value="aktiv">Aktiv</option>

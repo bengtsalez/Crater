@@ -1,18 +1,18 @@
 import { pool } from '../../../utils/db'
-import { requireUser } from '../../../utils/auth'
+import { requireInternal } from '../../../utils/auth'
 import { assertDepartmentKey } from '../../../utils/departments'
 import { resolveCustomer } from '../../../utils/customers'
 import { PROJECT_SELECT } from '../../../utils/queries'
 import { apiError } from '../../../utils/http'
 import { refreshProjectStatuses } from '../../../utils/projectStatus'
-import { BILLING_TYPES } from '../../../utils/projectTypes'
+import { BILLING_TYPES, normalizeSiteAddress } from '../../../utils/projectTypes'
 import { logActivity } from '../../../utils/activity'
 import { buildProjectUpdateEvent, type ProjectDiffRow } from '../../../utils/activityDiff'
 
 const STATUS_VALUES = ['aktiv', 'planerad', 'klar_att_fakturera', 'avslutad']
 
 export default defineEventHandler(async (event) => {
-  const user = requireUser(event)
+  const user = requireInternal(event)
   const orgId = user.org
   const id = getRouterParam(event, 'id')
   const existingResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND org_id = $2', [id, orgId])
@@ -28,8 +28,10 @@ export default defineEventHandler(async (event) => {
     b.project_manager_user_id !== undefined ? b.project_manager_user_id : existing.project_manager_user_id
   let newPmUsername: string | null = null
   if (newPm) {
-    const { rows } = await pool.query('SELECT username FROM users WHERE id = $1 AND org_id = $2', [newPm, orgId])
+    const { rows } = await pool.query('SELECT username, role FROM users WHERE id = $1 AND org_id = $2', [newPm, orgId])
     if (!rows[0]) throw apiError(400, 'Ogiltig projektledare.')
+    // Personalkonton kan inte vara projektledare (befintlig koppling får ligga kvar).
+    if (rows[0].role === 'employee' && newPm !== existing.project_manager_user_id) throw apiError(400, 'Ogiltig projektledare.')
     newPmUsername = rows[0].username
   }
   // Bara för aktivitetsloggens diff – "gammal PM"-namnet syns inte annars om
@@ -61,6 +63,8 @@ export default defineEventHandler(async (event) => {
       sourceProjectId = b.source_project_id
     }
   }
+  const siteAddress = b.site_address !== undefined ? normalizeSiteAddress(b.site_address) : existing.site_address
+
   // `work_type` sätts bara vid skapande – byte av typ på ett befintligt projekt stöds inte.
 
   // `status` styrs av automatiken (refreshProjectStatuses nedan). Klienten sätter
@@ -87,8 +91,8 @@ export default defineEventHandler(async (event) => {
       : { id: existing.customer_id, name: existing.client }
 
     await conn.query(
-      `UPDATE projects SET project_number=$1, name=$2, customer_id=$3, client=$4, project_manager_user_id=$5, sum=$6, start_date=$7, end_date=$8, status_override=$9, notes=$10, category=$11, billing_type=$12, source_project_id=$13
-       WHERE id=$14 AND org_id=$15`,
+      `UPDATE projects SET project_number=$1, name=$2, customer_id=$3, client=$4, project_manager_user_id=$5, sum=$6, start_date=$7, end_date=$8, status_override=$9, notes=$10, category=$11, billing_type=$12, source_project_id=$13, site_address=$14
+       WHERE id=$15 AND org_id=$16`,
       [
         b.project_number ?? existing.project_number,
         b.name ?? existing.name,
@@ -103,6 +107,7 @@ export default defineEventHandler(async (event) => {
         b.category !== undefined ? b.category || null : existing.category,
         billingType,
         sourceProjectId,
+        siteAddress,
         id,
         orgId,
       ]
@@ -119,6 +124,7 @@ export default defineEventHandler(async (event) => {
       status_override: existing.status_override,
       customer_name: existing.client,
       project_manager_username: oldPmUsername,
+      site_address: existing.site_address,
     }
     const nextDiff: ProjectDiffRow = {
       name: b.name ?? existing.name,
@@ -131,6 +137,7 @@ export default defineEventHandler(async (event) => {
       status_override: override,
       customer_name: customer.name,
       project_manager_username: newPmUsername,
+      site_address: siteAddress,
     }
     const updateEvent = buildProjectUpdateEvent(existingDiff, nextDiff)
     if (updateEvent) {

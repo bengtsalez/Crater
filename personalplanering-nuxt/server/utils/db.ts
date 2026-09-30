@@ -1,5 +1,6 @@
 import { Pool } from 'pg'
 import { runMigrations } from './migrate'
+import { BOOTSTRAP_SQL } from './schema'
 
 const connectionString = process.env.DATABASE_URL
 
@@ -9,90 +10,17 @@ if (!connectionString) {
 
 export const pool = new Pool({
   connectionString,
-  ssl: { rejectUnauthorized: false },
+  // DATABASE_SSL=false bara för lokala test-databaser utan TLS (t.ex. e2e mot
+  // PGlite, se scripts/e2e-employee.ts). Standard oförändrad.
+  ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
 })
 
 const FIRST_PROJECT_NUMBER = 1115
 const FIRST_SMALL_JOB_NUMBER = 1001
 
-// Schema-bootstrap – identiskt med den gamla appens db.js så att peka mot samma
-// databas fungerar utan migrering.
+// Schema-bootstrap (server/utils/schema.ts) följt av ordnade migreringar.
 function bootstrapSchema(): Promise<unknown> {
-  return pool.query(`
-    CREATE TABLE IF NOT EXISTS resources (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('anstalld','underentreprenor')),
-      phone TEXT,
-      active INTEGER NOT NULL DEFAULT 1
-    );
-
-    CREATE TABLE IF NOT EXISTS projects (
-      id SERIAL PRIMARY KEY,
-      project_number TEXT NOT NULL,
-      name TEXT NOT NULL,
-      client TEXT,
-      project_manager TEXT,
-      sum REAL,
-      start_date TEXT,
-      end_date TEXT,
-      status TEXT NOT NULL DEFAULT 'aktiv',
-      notes TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS assignments (
-      id SERIAL PRIMARY KEY,
-      resource_id INTEGER NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
-      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      start_date TEXT NOT NULL,
-      end_date TEXT NOT NULL,
-      note TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      username TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL
-    );
-
-    ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_manager_user_id INTEGER REFERENCES users(id);
-
-    ALTER TABLE resources ADD COLUMN IF NOT EXISTS category TEXT;
-
-    ALTER TABLE resources ADD COLUMN IF NOT EXISTS color TEXT;
-
-    ALTER TABLE projects ADD COLUMN IF NOT EXISTS category TEXT;
-
-    ALTER TABLE projects ADD COLUMN IF NOT EXISTS status_override TEXT;
-
-    CREATE TABLE IF NOT EXISTS tasks (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
-      title TEXT NOT NULL,
-      notes TEXT,
-      status TEXT NOT NULL DEFAULT 'aktiv',
-      due_date TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT now(),
-      completed_at TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS project_line_items (
-      id SERIAL PRIMARY KEY,
-      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      type TEXT NOT NULL CHECK (type IN ('ata', 'utgift')),
-      description TEXT NOT NULL,
-      amount REAL NOT NULL,
-      date TEXT,
-      notes TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT now()
-    );
-  `).then(() => runMigrations())
+  return pool.query(BOOTSTRAP_SQL).then(() => runMigrations())
 }
 
 // Memoiserad schema-bootstrap. Vid ett övergående fel (t.ex. tappad anslutning

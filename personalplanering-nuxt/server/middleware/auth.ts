@@ -1,13 +1,16 @@
-import { SESSION_COOKIE, verifySession, signSession, setSessionCookie } from '../utils/auth'
-import type { SessionPayload } from '../utils/auth'
+import { SESSION_COOKIE, verifySession, clearSessionCookie } from '../utils/auth'
+import type { SessionPayload, UserRole } from '../utils/auth'
 import { pool, ensureSchema } from '../utils/db'
+import { isEmployeeAllowedPath, loadSessionUser } from '../utils/employeeAccess'
 
 const PUBLIC_API_PATHS = new Set(['/api/login', '/api/logout', '/api/signup'])
 
 export default defineEventHandler(async (event) => {
   const path = event.path.split('?')[0] ?? ''
 
-  if (!path.startsWith('/api/')) return
+  // Skiftlägesokänsligt: allt som ser ut som /api/** kräver inloggning, även
+  // varianter som routern inte själv matchar (defense-in-depth).
+  if (!path.toLowerCase().startsWith('/api/')) return
 
   // Säkerställ att schema-bootstrap + migreringar är klara innan någon query körs.
   await ensureSchema()
@@ -15,21 +18,35 @@ export default defineEventHandler(async (event) => {
   if (PUBLIC_API_PATHS.has(path)) return
 
   const token = getCookie(event, SESSION_COOKIE)
-  let payload = verifySession(token)
-  if (!payload) {
+  const claims = verifySession(token)
+  if (!claims) {
     throw createError({ statusCode: 401, data: { error: 'Ej inloggad.' } })
   }
 
-  // Legacy-cookie-backfill: tokens signerade före flerkund-släppet saknar
-  // `org`/`role`. Berika från DB och skriv om cookien tyst.
-  // TODO: ta bort efter 2026-10-05 (≈35 dagar efter släpp).
-  if (payload.org === undefined || payload.role === undefined) {
-    const { rows } = await pool.query('SELECT org_id, role FROM users WHERE id = $1', [payload.sub])
-    if (!rows[0]) {
-      throw createError({ statusCode: 401, data: { error: 'Ej inloggad.' } })
-    }
-    payload = { ...payload, org: rows[0].org_id, role: rows[0].role } as SessionPayload
-    setSessionCookie(event, signSession(payload))
+  // JWT:n bevisar bara VEM som är inloggad. Roll, org, aktiv-status och
+  // resurskoppling läses från DB på varje anrop, så att avaktivering,
+  // rollbyte och ändrad koppling slår igenom direkt – även om en äldre token
+  // fortfarande är giltig. (Ersätter även den gamla legacy-backfillen för
+  // tokens utan org/role.)
+  const row = await loadSessionUser(pool, claims.sub)
+  if (!row || !row.active || (claims.org !== undefined && Number(claims.org) !== row.org_id)) {
+    clearSessionCookie(event)
+    throw createError({ statusCode: 401, data: { error: 'Ej inloggad.' } })
+  }
+
+  const payload: SessionPayload = {
+    sub: row.id,
+    username: row.username,
+    org: row.org_id,
+    role: row.role as UserRole,
+    resourceId: row.role === 'employee' ? row.resource_id : null,
+  }
+
+  // Personalkonton: deny-by-default. Bara /api/me, /api/logout och
+  // /api/employee/** – alla interna API:er (projekt, kunder, ekonomi,
+  // användare, org-inställningar …) är stängda oavsett route-implementation.
+  if (payload.role === 'employee' && !isEmployeeAllowedPath(event.path)) {
+    throw createError({ statusCode: 403, data: { error: 'Saknar behörighet.' } })
   }
 
   event.context.user = payload

@@ -28,7 +28,15 @@ npm run dev          # http://localhost:3001  (PORT i .env)
 npm run build        # produktion (Nitro upptäcker Netlify i CI automatiskt)
 npm run typecheck
 npm run set-user -- <användarnamn> <lösenord>   # skapa/uppdatera användare
+npm run test         # enhets- + DB-integrationstester (PGlite, ingen extern DB)
+npm run test:e2e     # bygger + HTTP-e2e för personalvyn mot PGlite
 ```
+
+`DATABASE_SSL=false` stänger av TLS mot databasen. Den används bara för lokala
+testdatabaser (e2e). Standard är oförändrad.
+
+**Personalvy:** personal loggar in på `/personal/login`. Se `../docs/employee-access.md`
+för roller, koppling konto ↔ personalresurs och behörigheter.
 
 ## Struktur
 
@@ -36,7 +44,9 @@ npm run set-user -- <användarnamn> <lösenord>   # skapa/uppdatera användare
 |---|---|
 | `server/api/**` | REST-endpoints (samma som gamla appen) |
 | `server/utils/{db,auth,domain,queries,http}.ts` | delad serverlogik |
-| `server/middleware/auth.ts` | skyddar `/api/**` utom `/api/login`, `/api/logout` |
+| `server/middleware/auth.ts` | skyddar `/api/**` utom `/api/login`, `/api/logout`; läser användaren från DB per anrop; personal bara `/api/employee/**` |
+| `server/api/employee/**`, `server/utils/employeeAccess.ts` | personalvyns begränsade API |
+| `app/pages/personal/**`, `layouts/employee.vue`, `useEmployeeData.ts` | personalvyn |
 | `app/composables/useAppData.ts` | delad datacache + `loadAll()` (motsvarar gamla `state`) |
 | `app/composables/useApi.ts` | `$fetch`-wrapper (401 → `/login`, fel → svensk text) |
 | `app/composables/useModals.ts` | öppna/stäng-tillstånd för alla modaler |

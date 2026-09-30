@@ -1,17 +1,18 @@
 import { pool } from '../../utils/db'
 import { TASK_SELECT } from '../../utils/queries'
-import { requireUser } from '../../utils/auth'
+import { requireInternal } from '../../utils/auth'
 import { apiError } from '../../utils/http'
 import { logActivity } from '../../utils/activity'
 import { buildTaskUpdateEvents } from '../../utils/activityDiff'
+import { canManageTask, resolveTaskAssignee } from '../../utils/taskAccess'
 
 export default defineEventHandler(async (event) => {
-  const user = requireUser(event)
+  const user = requireInternal(event)
   const id = getRouterParam(event, 'id')
 
   const existingResult = await pool.query('SELECT * FROM tasks WHERE id = $1', [id])
   const existing = existingResult.rows[0]
-  if (!existing || existing.user_id !== user.sub || existing.org_id !== user.org) {
+  if (!existing || !(await canManageTask(pool, user, existing))) {
     throw apiError(404, 'Hittades inte.')
   }
 
@@ -32,11 +33,18 @@ export default defineEventHandler(async (event) => {
   }
   const newProjectId = b.project_id !== undefined ? b.project_id : existing.project_id
   const finalDueDate = b.due_date ?? existing.due_date
+  // Mottagaren behålls om inget skickas; en personaluppgift måste ha kvar ett projekt.
+  const newAssignee =
+    b.user_id !== undefined
+      ? await resolveTaskAssignee(pool, user, b.user_id, newProjectId)
+      : existing.user_id !== user.sub
+        ? await resolveTaskAssignee(pool, user, existing.user_id, newProjectId)
+        : existing.user_id
 
   const updated = await pool.query(
-    `UPDATE tasks SET project_id=$1, title=$2, notes=$3, status=$4, due_date=$5, completed_at=$6
-     WHERE id=$7 RETURNING id`,
-    [newProjectId, b.title ?? existing.title, b.notes ?? existing.notes, newStatus, finalDueDate, completed_at, id]
+    `UPDATE tasks SET project_id=$1, title=$2, notes=$3, status=$4, due_date=$5, completed_at=$6, user_id=$7
+     WHERE id=$8 AND org_id=$9 RETURNING id`,
+    [newProjectId, b.title ?? existing.title, b.notes ?? existing.notes, newStatus, finalDueDate, completed_at, newAssignee, id, user.org]
   )
 
   const events = buildTaskUpdateEvents(

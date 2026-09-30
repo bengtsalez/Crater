@@ -25,6 +25,7 @@ const FIELD_LABELS: Record<string, string> = {
   status_override: 'manuell status',
   customer_name: 'kund',
   project_manager_username: 'projektledare',
+  site_address: 'arbetsplatsens adress',
   customer_type: 'kundtyp',
   organization_number: 'org.nr',
   contact_person: 'kontaktperson',
@@ -92,6 +93,19 @@ const FORMATTERS: Record<string, (e: ActivityEvent) => ActivityDisplay> = {
     title: `${actorName(e)} ändrade status till ${STATUS_LABELS[e.metadata.new_value as string] || e.metadata.new_value}`,
   }),
   'small_job.completed': () => ({ icon: 'i-lucide-check-circle', title: 'Ströjobbet markerades som slutfört' }),
+
+  'staff_info.updated': (e) => ({
+    icon: 'i-lucide-clipboard-list',
+    title: `${actorName(e)} uppdaterade informationen till personal`,
+  }),
+  'staff_info.published': (e) => ({
+    icon: 'i-lucide-eye',
+    title: `${actorName(e)} gjorde informationen synlig för personal`,
+  }),
+  'staff_info.unpublished': (e) => ({
+    icon: 'i-lucide-eye-off',
+    title: `${actorName(e)} dolde informationen för personal`,
+  }),
 
   'customer.created': (e) => ({ icon: 'i-lucide-user-plus', title: `${actorName(e)} skapade kunden "${e.metadata.name}"` }),
   'customer.updated': (e) => updatedDisplay(e, 'kunden'),

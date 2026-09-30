@@ -1,16 +1,17 @@
 import { pool, nextProjectNumber, nextSmallJobNumber } from '../../utils/db'
-import { requireUser } from '../../utils/auth'
+import { requireInternal } from '../../utils/auth'
 import { assertDepartmentKey } from '../../utils/departments'
 import { resolveCustomer } from '../../utils/customers'
 import { PROJECT_SELECT } from '../../utils/queries'
 import { apiError } from '../../utils/http'
 import { WORK_TYPES, BILLING_TYPES } from '../../utils/projectTypes'
 import { logActivity } from '../../utils/activity'
+import { normalizeSiteAddress } from '../../utils/projectTypes'
 
 const STATUS_VALUES = ['aktiv', 'planerad', 'klar_att_fakturera', 'avslutad']
 
 export default defineEventHandler(async (event) => {
-  const user = requireUser(event)
+  const user = requireInternal(event)
   const orgId = user.org
   const b = await readBody(event)
   const {
@@ -28,6 +29,7 @@ export default defineEventHandler(async (event) => {
     work_type,
     billing_type,
     source_project_id,
+    site_address,
   } = b || {}
   if (!name) {
     throw apiError(400, 'Namn krävs.')
@@ -54,7 +56,7 @@ export default defineEventHandler(async (event) => {
 
   if (project_manager_user_id) {
     const { rowCount } = await pool.query(
-      'SELECT 1 FROM users WHERE id = $1 AND org_id = $2',
+      "SELECT 1 FROM users WHERE id = $1 AND org_id = $2 AND role <> 'employee'",
       [project_manager_user_id, orgId]
     )
     if (!rowCount) throw apiError(400, 'Ogiltig projektledare.')
@@ -72,8 +74,8 @@ export default defineEventHandler(async (event) => {
     // Nyskapat projekt är alltid "aktiv" (inga bokningar ännu). En ev. manuell
     // override kan sättas direkt; annars styr automatiken framåt.
     const inserted = await conn.query(
-      `INSERT INTO projects (org_id, project_number, name, customer_id, client, project_manager_user_id, sum, start_date, end_date, status, status_override, notes, category, work_type, billing_type, source_project_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
+      `INSERT INTO projects (org_id, project_number, name, customer_id, client, project_manager_user_id, sum, start_date, end_date, status, status_override, notes, category, work_type, billing_type, source_project_id, site_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
       [
         orgId,
         project_number,
@@ -91,6 +93,7 @@ export default defineEventHandler(async (event) => {
         workType,
         billingType,
         sourceProjectId,
+        normalizeSiteAddress(site_address),
       ]
     )
     projectId = inserted.rows[0].id

@@ -1,5 +1,5 @@
 import { pool } from '../../utils/db'
-import { requireUser } from '../../utils/auth'
+import { requireInternal } from '../../utils/auth'
 import { ASSIGNMENT_SELECT } from '../../utils/queries'
 import { apiError } from '../../utils/http'
 import { clearStatusOverride, refreshProjectStatuses } from '../../utils/projectStatus'
@@ -8,7 +8,7 @@ import { logActivity } from '../../utils/activity'
 import { buildAssignmentRescheduleEvent } from '../../utils/activityDiff'
 
 export default defineEventHandler(async (event) => {
-  const user = requireUser(event)
+  const user = requireInternal(event)
   const orgId = user.org
   const id = getRouterParam(event, 'id')
   const existingResult = await pool.query(

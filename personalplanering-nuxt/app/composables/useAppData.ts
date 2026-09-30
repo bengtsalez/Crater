@@ -33,6 +33,10 @@ export function useAppData() {
 
   const { api } = useApi()
 
+  // Projektledare väljs bland interna konton; personalkonton kan få uppgifter.
+  const internalUsers = computed(() => users.value.filter((u) => u.role !== 'employee' && u.active !== false))
+  const employeeUsers = computed(() => users.value.filter((u) => u.role === 'employee'))
+
   function assignSettled<T>(result: PromiseSettledResult<T>, ref: Ref<T>, key: string) {
     if (result.status === 'fulfilled') {
       ref.value = result.value
@@ -108,6 +112,8 @@ export function useAppData() {
     projects,
     assignments,
     users,
+    internalUsers,
+    employeeUsers,
     departments,
     customers,
     currentUser,

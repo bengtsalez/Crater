@@ -4,6 +4,7 @@ import m0003 from './0003_small_jobs'
 import m0004 from './0004_customers'
 import m0005 from './0005_renumber_small_jobs'
 import m0006 from './0006_activity_events'
+import m0007 from './0007_employee_access'
 
 // Ordnad lista. Lägg nya migreringar sist – aldrig ändra `version` på en befintlig.
 export interface Migration {
@@ -18,4 +19,5 @@ export const MIGRATIONS: Migration[] = [
   { version: '0004_customers', sql: m0004 },
   { version: '0005_renumber_small_jobs', sql: m0005 },
   { version: '0006_activity_events', sql: m0006 },
+  { version: '0007_employee_access', sql: m0007 },
 ]

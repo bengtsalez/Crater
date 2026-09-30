@@ -20,6 +20,7 @@ interface TaskModalState {
   open: boolean
   task: Task | null
   defaultProjectId: number | null
+  defaultUserId?: number | null
 }
 interface LineItemModalState {
   open: boolean
@@ -105,8 +106,8 @@ export function useModals() {
       projectId: opts.projectId ?? null,
     }
   }
-  function openTaskModal(t: Task | null, defaultProjectId: number | null = null) {
-    task.value = { open: true, task: t, defaultProjectId }
+  function openTaskModal(t: Task | null, defaultProjectId: number | null = null, defaultUserId: number | null = null) {
+    task.value = { open: true, task: t, defaultProjectId, defaultUserId }
   }
   function openLineItemModal(type: 'ata' | 'utgift', item: LineItem | null, projectId: number | null) {
     lineItem.value = { open: true, type, item, projectId }

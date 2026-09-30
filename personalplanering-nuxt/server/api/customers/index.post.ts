@@ -1,11 +1,11 @@
 import { pool } from '../../utils/db'
-import { requireUser } from '../../utils/auth'
+import { requireInternal } from '../../utils/auth'
 import { CUSTOMER_SELECT } from '../../utils/queries'
 import { apiError } from '../../utils/http'
 import { logActivity } from '../../utils/activity'
 
 export default defineEventHandler(async (event) => {
-  const user = requireUser(event)
+  const user = requireInternal(event)
   const orgId = user.org
   const b = await readBody(event)
   const name = String(b?.name ?? '').trim()

@@ -2,13 +2,18 @@
 import type { Project } from '~/types'
 
 const { project: modal } = useModals()
-const { users, loadAll } = useAppData()
+const { users, internalUsers, loadAll } = useAppData()
 const { options: departmentOptions } = useDepartments()
 const { api } = useApi()
 const { remove: removeProject } = useProjectActions()
 const { refresh: refreshActivity } = useProjectActivity()
 const toast = useToast()
 const isMobile = useIsMobile()
+
+// Interna konton + ev. redan vald projektledare (så ett avaktiverat konto inte försvinner ur valet).
+const pmOptions = computed(() =>
+  users.value.filter((u) => internalUsers.value.includes(u) || u.id === Number(form.project_manager_user_id))
+)
 
 const open = computed({
   get: () => modal.value.open,
@@ -39,6 +44,7 @@ const form = reactive({
   end_date: '',
   status_override: '',
   notes: '',
+  site_address: '',
 })
 
 watch(
@@ -60,6 +66,7 @@ watch(
         end_date: p.end_date || '',
         status_override: p.status_override || '',
         notes: p.notes || '',
+        site_address: p.site_address || '',
       })
     } else {
       Object.assign(form, {
@@ -75,6 +82,7 @@ watch(
         end_date: '',
         status_override: '',
         notes: '',
+        site_address: '',
       })
       try {
         const { next } = await api<{ next: string }>('GET', '/api/projects/next-number')
@@ -101,6 +109,7 @@ async function submit() {
     end_date: form.end_date,
     status_override: form.status_override || null,
     notes: form.notes.trim(),
+    site_address: form.site_address.trim(),
   }
   try {
     let created: Project | null = null
@@ -154,7 +163,7 @@ async function remove() {
         <label>Projektledare
           <select v-model="form.project_manager_user_id">
             <option value="">Ingen vald</option>
-            <option v-for="u in users" :key="u.id" :value="u.id">{{ u.username }}</option>
+            <option v-for="u in pmOptions" :key="u.id" :value="u.id">{{ u.username }}</option>
           </select>
         </label>
         <label>Summa (kr)<input v-model="form.sum" type="number" step="1"></label>
@@ -177,7 +186,8 @@ async function remove() {
             gäller tills projektets bokningar ändras.
           </span>
         </label>
-        <label>Anteckningar<textarea v-model="form.notes" rows="2" /></label>
+        <label>Arbetsplatsens adress<input v-model="form.site_address" placeholder="Gata, postnummer, ort" autocomplete="off"></label>
+        <label>Anteckningar (interna)<textarea v-model="form.notes" rows="2" /></label>
         <div class="modal-actions">
           <button v-if="editing" type="button" class="plain danger" :disabled="deleting" @click="remove">Ta bort</button>
           <div class="spacer" />

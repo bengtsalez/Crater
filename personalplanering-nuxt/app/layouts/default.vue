@@ -3,8 +3,7 @@ import type { TabName } from '~/composables/useUiState'
 
 const route = useRoute()
 const { activeTab, projectDetailId, customerDetailId } = useUiState()
-const { org } = useAppData()
-const { api } = useApi()
+const { org, currentUser } = useAppData()
 const colorMode = useColorMode()
 
 function toggleColorMode() {
@@ -15,7 +14,7 @@ const isLogin = computed(() => route.path === '/login')
 const appTitle = computed(() => org.value?.app_title || org.value?.name || 'Personalplanering')
 useHead(() => ({ title: appTitle.value }))
 
-const tabs: { name: TabName; label: string; hidden?: boolean }[] = [
+const allTabs: { name: TabName; label: string; hidden?: boolean; adminOnly?: boolean }[] = [
   { name: 'timeline', label: 'Tidslinje' },
   { name: 'analytics', label: 'Översikt' },
   { name: 'month', label: 'Månadskalender', hidden: true },
@@ -24,7 +23,9 @@ const tabs: { name: TabName; label: string; hidden?: boolean }[] = [
   { name: 'resources', label: 'Personal' },
   { name: 'kunder', label: 'Kunder' },
   { name: 'minsida', label: 'Min sida' },
+  { name: 'konton', label: 'Konton', adminOnly: true },
 ]
+const tabs = computed(() => allTabs.filter((t) => !t.adminOnly || currentUser.value?.role === 'admin'))
 
 function selectTab(name: TabName) {
   projectDetailId.value = null
@@ -33,8 +34,7 @@ function selectTab(name: TabName) {
 }
 
 async function logout() {
-  await api('POST', '/api/logout')
-  await navigateTo('/login')
+  await logoutAndReset('/login')
 }
 </script>
 

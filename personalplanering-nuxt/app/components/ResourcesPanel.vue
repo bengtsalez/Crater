@@ -2,7 +2,11 @@
 import type { Resource } from '~/types'
 import { colorForResource } from '~/utils/colors'
 
-const { resources, loadAll } = useAppData()
+const { resources, users, loadAll } = useAppData()
+
+function accountName(resourceId: number) {
+  return users.value.find((u) => u.resource_id === resourceId)?.username || '–'
+}
 const { labelFor: departmentLabel } = useDepartments()
 const { openResourceModal } = useModals()
 const { api } = useApi()
@@ -32,7 +36,7 @@ async function remove(id: number) {
     <h2 class="group-title">Anställda</h2>
     <table class="data-table">
       <thead>
-        <tr><th /><th>Namn</th><th>Kategori</th><th>Telefon</th><th>Aktiv</th><th /></tr>
+        <tr><th /><th>Namn</th><th>Kategori</th><th>Telefon</th><th>Konto</th><th>Aktiv</th><th /></tr>
       </thead>
       <tbody>
         <tr v-for="r in employees" :key="r.id" class="clickable" @click="openResourceModal(r)">
@@ -40,6 +44,7 @@ async function remove(id: number) {
           <td data-label="Namn">{{ r.name }}</td>
           <td data-label="Kategori">{{ departmentLabel(r.category) }}</td>
           <td data-label="Telefon">{{ r.phone || '–' }}</td>
+          <td data-label="Konto">{{ accountName(r.id) }}</td>
           <td data-label="Aktiv">{{ r.active ? 'Ja' : 'Nej' }}</td>
           <td data-label=""><button class="plain danger" @click.stop="remove(r.id)">Ta bort</button></td>
         </tr>

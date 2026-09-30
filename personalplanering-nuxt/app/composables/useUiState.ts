@@ -1,4 +1,4 @@
-export type TabName = 'timeline' | 'analytics' | 'month' | 'projects' | 'strojobb' | 'resources' | 'kunder' | 'minsida'
+export type TabName = 'timeline' | 'analytics' | 'month' | 'projects' | 'strojobb' | 'resources' | 'kunder' | 'minsida' | 'konton'
 
 /**
  * UI-tillstånd som behöver delas mellan flikar (t.ex. tidslinjens badge som filtrerar

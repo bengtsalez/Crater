@@ -52,3 +52,18 @@ Pre-flight mot prod innan denna körs skarpt:
 SELECT project_number, count(*) FROM projects GROUP BY 1 HAVING count(*) > 1;  -- måste vara tom
 SELECT count(*) FROM users WHERE username IS NULL;                             -- 0
 ```
+
+## 0007_employee_access
+
+Endast additiv. Befintliga rader ändras inte, förutom att `tasks.created_by_user_id`
+backfylls med `user_id`.
+
+- `users.active` (default `true`), `users.resource_id` (FK → `resources`, `ON DELETE SET NULL`,
+  unik när den är satt), `users.phone`
+- `projects.site_address`
+- `tasks.created_by_user_id`
+- ny tabell `project_staff_info` (arbetsinformation till personal, separat från `projects.notes`)
+- index `assignments (org_id, resource_id)`, `tasks (org_id, user_id, project_id)`
+
+Rollen `employee` är ett nytt värde i den befintliga TEXT-kolumnen `users.role` och
+kräver ingen DDL. Se `docs/employee-access.md`.
