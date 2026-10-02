@@ -5,7 +5,7 @@
 //   npm run test:e2e        (bygger först, kör sedan detta skript)
 //   node --import tsx scripts/e2e-employee.ts --serve
 //                           (startar bara servern mot testdatan för manuell
-//                            kontroll; logga in som anna/pm/e2eadmin, lösenord nedan)
+//                            kontroll; logga in som anna/pm/e2eadmin/revisor, lösenord nedan)
 //
 // Verifierar uppdragets scenarier 1–8 via riktiga HTTP-anrop med sessionskakor.
 import { spawn } from 'node:child_process'
@@ -79,6 +79,11 @@ async function main() {
     "INSERT INTO users (org_id, username, password_hash, role) VALUES ($1, 'member2', $2, 'member') RETURNING id",
     [s.orgA, hash]
   )).rows[0].id as number
+  await db.query("INSERT INTO users (org_id, username, password_hash, role) VALUES ($1, 'revisor', $2, 'accountant')", [s.orgA, hash])
+  await db.query(
+    "INSERT INTO project_line_items (org_id, project_id, type, description, amount, notes) VALUES ($1, $2, 'ata', 'Extra dränering', 1500, 'HEMLIG RADNOTERING')",
+    [s.orgA, s.p1]
+  )
   const rEva = (await db.query(
     "INSERT INTO resources (org_id, name, type, category) VALUES ($1, 'Eva', 'anstalld', 'mark') RETURNING id",
     [s.orgA]
@@ -130,7 +135,7 @@ async function main() {
     }
 
     if (process.argv.includes('--serve')) {
-      console.log(`\nTestserver: ${base}  (användare: anna, bo, dora, pm, e2eadmin – lösenord: ${PASSWORD})`)
+      console.log(`\nTestserver: ${base}  (användare: anna, bo, dora, pm, e2eadmin, revisor – lösenord: ${PASSWORD})`)
       console.log('Ctrl+C för att avsluta.')
       await new Promise<void>((resolve) => process.once('SIGINT', () => resolve()))
       return
@@ -166,6 +171,7 @@ async function main() {
     const pm = await login('pm')
     const adm = await login('e2eadmin')
     const m2 = await login('member2')
+    const rev = await login('revisor')
 
     console.log('\nInloggning och roller')
     check('personal får role=employee vid inloggning', anna.role === 'employee')
@@ -285,6 +291,37 @@ async function main() {
     await call('PUT', `/api/users/${s.anna}`, adm.cookie, { resource_id: s.rAnna })
     await call('PUT', `/api/users/${member2}`, adm.cookie, { role: 'employee', resource_id: null })
     check('member → personal: gammal cookie når inte längre interna API:er', (await call('GET', '/api/projects', m2.cookie)).status === 403)
+
+    console.log('\n9. Redovisningskonsult (rollen accountant)')
+    check('redovisning får role=accountant vid inloggning', rev.role === 'accountant')
+    const revMe = await call('GET', '/api/me', rev.cookie)
+    check('/api/me för redovisning saknar onboarding-tillstånd', revMe.status === 200 && revMe.body?.org?.onboarding_state === undefined, revMe.body)
+    const revList = await call('GET', '/api/accountant/projects', rev.cookie)
+    const revP1 = revList.body?.projects?.find((p: any) => p.id === s.p1)
+    check('ser org:ens alla projekt (inte org B:s)', revList.status === 200 && revList.body.projects.map((p: any) => p.id).sort().join() === [s.p1, s.p2].sort().join(), revList.body)
+    check('listan har kund, org.nr och ÄTA-summa', revP1?.customer_name === 'Kund AB' && revP1?.customer_organization_number === '556000-0000' && revP1?.ata_total === 1500, revP1)
+    const revDetail = await call('GET', `/api/accountant/projects/${s.p1}`, rev.cookie)
+    check('detaljvyn har fakturauppgifter och ÄTA-rader', revDetail.status === 200 && revDetail.body.customer?.billing_address === 'Faktura 1' && revDetail.body.customer?.email === 'kund@x.se' && revDetail.body.line_items?.length === 1, revDetail.body)
+    const revJson = JSON.stringify([revList.body, revDetail.body])
+    check('inga interna anteckningar läcker', !/INTERN ANTECKNING|HEMLIG/.test(revJson))
+    check('org B:s projekt ger 404', (await call('GET', `/api/accountant/projects/${s.p3}`, rev.cookie)).status === 404)
+    const revDenied = [
+      ['GET', '/api/projects'], ['GET', `/api/projects/${s.p1}/line-items`], ['PUT', `/api/projects/${s.p1}`],
+      ['DELETE', `/api/projects/${s.p1}`], ['GET', '/api/customers'], ['PUT', `/api/customers/${s.cust}`],
+      ['GET', '/api/users'], ['POST', '/api/users'], ['GET', '/api/assignments'], ['GET', '/api/tasks'],
+      ['POST', '/api/line-items'], ['PUT', '/api/org'], ['GET', '/api/employee/jobs'],
+      ['GET', '/api/accountant/../projects'], ['GET', '/api/accountant/%2e%2e/customers'],
+    ] as const
+    const revLeaks: string[] = []
+    for (const [m, p] of revDenied) {
+      const r = await call(m, p, rev.cookie, m === 'GET' || m === 'DELETE' ? undefined : {})
+      if (r.status !== 403 && r.status !== 404 && r.status !== 405) revLeaks.push(`${m} ${p} → ${r.status}`)
+    }
+    check(`alla ${revDenied.length} interna/skrivande anrop nekas för redovisning`, revLeaks.length === 0, revLeaks)
+    check('interna användare och personal når inte redovisnings-API:t', (await call('GET', '/api/accountant/projects', pm.cookie)).status === 403 && (await call('GET', '/api/accountant/projects', bo.cookie)).status === 403)
+    check('redovisningskonto kan inte bli projektledare', (await call('PUT', `/api/projects/${s.p2}`, pm.cookie, { project_manager_user_id: revMe.body.id })).status === 400)
+    const acc2 = await call('POST', '/api/users', adm.cookie, { username: 'revisor2', password: PASSWORD, role: 'accountant' })
+    check('admin skapar redovisningskonto', acc2.status === 201 && acc2.body.role === 'accountant' && acc2.body.resource_id === null, acc2.body)
 
     console.log('\n8. Befintlig intern planering och befintliga roller')
     const projects = await call('GET', '/api/projects', pm.cookie)

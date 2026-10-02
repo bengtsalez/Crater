@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// Gemensamt inloggningsformulär för /login (interna användare) och
-// /personal/login (personal). Samma /api/login – rollen i svaret avgör vart
-// man hamnar, så även en anställd som råkar använda /login landar rätt.
+// Gemensamt inloggningsformulär för /login (interna användare),
+// /personal/login (personal) och /redovisning/login (redovisningskonsult).
+// Samma /api/login – rollen i svaret avgör vart man hamnar, så även en
+// anställd som råkar använda /login landar rätt.
 defineProps<{ title: string }>()
 
 const username = ref('')
@@ -19,7 +20,7 @@ async function submit() {
     })
     // Nytt konto i samma flik → släng allt som tidigare användare laddat.
     resetClientState()
-    await navigateTo(res.role === 'employee' ? '/personal' : '/')
+    await navigateTo(homePathForRole(res.role))
   } catch (err) {
     error.value = errorMessage(err, 'Kunde inte logga in.')
   } finally {

@@ -34,9 +34,9 @@ export function useApi() {
         if (import.meta.client) {
           // Sessionen är ogiltig (utloggad, avaktiverad …) – släng all cachad
           // data innan omdirigeringen så inget ligger kvar till nästa konto.
-          const toPersonal = window.location.pathname.startsWith('/personal')
+          const loginPath = loginPathFor(window.location.pathname)
           resetClientState()
-          await navigateTo(toPersonal ? '/personal/login' : '/login')
+          await navigateTo(loginPath)
         }
         // Stoppa vidare bearbetning tills omdirigeringen sker.
         return new Promise<T>(() => {})

@@ -34,7 +34,7 @@ export function useAppData() {
   const { api } = useApi()
 
   // Projektledare väljs bland interna konton; personalkonton kan få uppgifter.
-  const internalUsers = computed(() => users.value.filter((u) => u.role !== 'employee' && u.active !== false))
+  const internalUsers = computed(() => users.value.filter((u) => u.role !== 'employee' && u.role !== 'accountant' && u.active !== false))
   const employeeUsers = computed(() => users.value.filter((u) => u.role === 'employee'))
 
   function assignSettled<T>(result: PromiseSettledResult<T>, ref: Ref<T>, key: string) {

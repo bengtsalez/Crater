@@ -3,7 +3,7 @@ import { apiError } from './http'
 
 type Queryable = { query: Pool['query'] }
 
-export const USER_ROLES = ['admin', 'member', 'employee'] as const
+export const USER_ROLES = ['admin', 'member', 'employee', 'accountant'] as const
 export type AssignableRole = (typeof USER_ROLES)[number]
 
 export function parseUserRole(v: unknown, fallback: AssignableRole): AssignableRole {

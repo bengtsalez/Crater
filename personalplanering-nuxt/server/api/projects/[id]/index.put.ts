@@ -30,8 +30,8 @@ export default defineEventHandler(async (event) => {
   if (newPm) {
     const { rows } = await pool.query('SELECT username, role FROM users WHERE id = $1 AND org_id = $2', [newPm, orgId])
     if (!rows[0]) throw apiError(400, 'Ogiltig projektledare.')
-    // Personalkonton kan inte vara projektledare (befintlig koppling får ligga kvar).
-    if (rows[0].role === 'employee' && newPm !== existing.project_manager_user_id) throw apiError(400, 'Ogiltig projektledare.')
+    // Personal- och redovisningskonton kan inte vara projektledare (befintlig koppling får ligga kvar).
+    if ((rows[0].role === 'employee' || rows[0].role === 'accountant') && newPm !== existing.project_manager_user_id) throw apiError(400, 'Ogiltig projektledare.')
     newPmUsername = rows[0].username
   }
   // Bara för aktivitetsloggens diff – "gammal PM"-namnet syns inte annars om

@@ -23,6 +23,16 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  if (user.role === 'accountant') {
+    return {
+      id: user.sub,
+      username: user.username,
+      role: user.role,
+      resource: null,
+      org: org ? { id: org.id, name: org.name, app_title: org.app_title, onboarded_at: org.onboarded_at } : null,
+    }
+  }
+
   return {
     id: user.sub,
     username: user.username,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isEmployeeAllowedPath, normalizeApiPath, pickCustomerFieldsForStaff } from './employeeAccess'
+import { isAccountantAllowedPath, isEmployeeAllowedPath, normalizeApiPath, pickCustomerFieldsForStaff } from './employeeAccess'
 
 describe('isEmployeeAllowedPath', () => {
   it('släpper igenom personalens endpoints', () => {
@@ -43,5 +43,27 @@ describe('pickCustomerFieldsForStaff', () => {
     })
     expect(out).toEqual({ name: 'Kund', contact_person: 'Kalle', phone: '1', mobile: null, address: 'Gata', postal_code: '1', city: 'X' })
     expect(pickCustomerFieldsForStaff(null)).toBeNull()
+  })
+})
+
+describe('isAccountantAllowedPath', () => {
+  it('släpper igenom redovisningsvyns endpoints', () => {
+    for (const p of ['/api/me', '/api/logout', '/api/accountant/projects', '/api/accountant/projects/12']) {
+      expect(isAccountantAllowedPath(p), p).toBe(true)
+    }
+  })
+
+  it('nekar interna och personalens endpoints samt sökvägstrick', () => {
+    for (const p of [
+      '/api/projects', '/api/projects/1', '/api/projects/1/line-items', '/api/customers', '/api/customers/1',
+      '/api/users', '/api/org', '/api/employee/jobs', '/api/accountant', '/api/accountant/',
+      '/api/accountant/../projects', '/api/accountant/%2e%2e/users', '//api/customers', '/api/accountant/%zz',
+    ]) {
+      expect(isAccountantAllowedPath(p), p).toBe(false)
+    }
+  })
+
+  it('personal kommer inte åt redovisningsvyn', () => {
+    expect(isEmployeeAllowedPath('/api/accountant/projects')).toBe(false)
   })
 })

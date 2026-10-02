@@ -1,3 +1,5 @@
+import type { LoginPath } from '~/utils/roles'
+
 /**
  * Rensar all klientcache och stoppar polling. Körs vid utloggning, inloggning
  * och när ett annat konto upptäcks (t.ex. utloggning + inloggning som någon
@@ -10,7 +12,7 @@ export function resetClientState() {
   clearNuxtState()
 }
 
-export async function logoutAndReset(target: '/login' | '/personal/login' = '/login') {
+export async function logoutAndReset(target: LoginPath = '/login') {
   try {
     await $fetch('/api/logout', { method: 'POST' })
   } finally {

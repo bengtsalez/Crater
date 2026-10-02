@@ -8,7 +8,9 @@ export const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000 // 30 dagar
 
 // 'employee' = personalkonto (fältpersonal). Ser bara /personal-vyn och får
 // bara anropa /api/me, /api/logout och /api/employee/** (se server/middleware/auth.ts).
-export type UserRole = 'admin' | 'member' | 'employee'
+// 'accountant' = redovisningskonsult. Ser bara /redovisning (projekt + kunder,
+// skrivskyddat) och får bara anropa /api/me, /api/logout och /api/accountant/**.
+export type UserRole = 'admin' | 'member' | 'employee' | 'accountant'
 
 export interface SessionPayload {
   sub: number
@@ -65,13 +67,22 @@ export function requireUser(event: H3Event): SessionPayload {
   return user
 }
 
-// Intern användare (admin/member) – allt utom personalkonton. Middlewaren
+// Intern användare (admin/member) – allt utom personal- och redovisningskonton. Middlewaren
 // stoppar redan personal från interna endpoints; detta är defense-in-depth
 // så att en route som av misstag hamnar utanför middlewarens skydd ändå är stängd.
 export function requireInternal(event: H3Event): SessionPayload {
   const user = requireUser(event)
-  if (user.role === 'employee') {
+  if (user.role === 'employee' || user.role === 'accountant') {
     throw createError({ statusCode: 403, data: { error: 'Saknar behörighet.' } })
+  }
+  return user
+}
+
+// Redovisningskonsult – skrivskyddad åtkomst till org:ens projekt och kunder.
+export function requireAccountant(event: H3Event): SessionPayload {
+  const user = requireUser(event)
+  if (user.role !== 'accountant') {
+    throw createError({ statusCode: 403, data: { error: 'Endast för redovisningskonton.' } })
   }
   return user
 }

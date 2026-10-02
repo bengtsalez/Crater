@@ -1,7 +1,7 @@
 import { SESSION_COOKIE, verifySession, clearSessionCookie } from '../utils/auth'
 import type { SessionPayload, UserRole } from '../utils/auth'
 import { pool, ensureSchema } from '../utils/db'
-import { isEmployeeAllowedPath, loadSessionUser } from '../utils/employeeAccess'
+import { isAccountantAllowedPath, isEmployeeAllowedPath, loadSessionUser } from '../utils/employeeAccess'
 
 const PUBLIC_API_PATHS = new Set(['/api/login', '/api/logout', '/api/signup'])
 
@@ -46,6 +46,12 @@ export default defineEventHandler(async (event) => {
   // /api/employee/** – alla interna API:er (projekt, kunder, ekonomi,
   // användare, org-inställningar …) är stängda oavsett route-implementation.
   if (payload.role === 'employee' && !isEmployeeAllowedPath(event.path)) {
+    throw createError({ statusCode: 403, data: { error: 'Saknar behörighet.' } })
+  }
+
+  // Redovisningskonsult: samma deny-by-default, men bara skrivskyddade
+  // /api/accountant/**.
+  if (payload.role === 'accountant' && !isAccountantAllowedPath(event.path)) {
     throw createError({ statusCode: 403, data: { error: 'Saknar behörighet.' } })
   }
 

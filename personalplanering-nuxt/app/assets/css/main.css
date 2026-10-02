@@ -1080,3 +1080,22 @@ a.emp-btn.primary, .plain.emp-btn.primary { background: var(--primary); border-c
 @media (max-width: 767px) {
   .staff-info-grid { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   Redovisningsvyn (/redovisning) – skrivskyddad, bredare än personalvyn.
+   ============================================================ */
+.emp-main.acc-main { max-width: 1280px; }
+.acc-user { font-size: 14px; white-space: nowrap; }
+.data-table .acc-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.acc-link { color: var(--primary); text-decoration: none; }
+.acc-link:hover { text-decoration: underline; }
+.data-table .acc-total td { font-weight: 600; border-top: 2px solid var(--border); }
+.emp-topbar .plain, .emp-topbar .emp-nav-link { white-space: nowrap; }
+.acc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.acc-grid > .emp-block { margin: 0; }
+@media (max-width: 767px) {
+  .acc-user { display: none; }
+  .data-table tfoot { display: block; }
+  .data-table .acc-total td { border-top: none; }
+  .data-table .acc-total td:empty { display: none; }
+}

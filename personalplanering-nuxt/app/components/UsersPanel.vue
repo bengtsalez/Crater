@@ -8,7 +8,7 @@ const { users, resources, currentUser, loadAll } = useAppData()
 const { api } = useApi()
 const toast = useToast()
 
-const ROLE_LABELS: Record<UserRole, string> = { admin: 'Admin', member: 'Medlem', employee: 'Personal' }
+const ROLE_LABELS: Record<UserRole, string> = { admin: 'Admin', member: 'Medlem', employee: 'Personal', accountant: 'Redovisning' }
 
 const blank = () => ({
   username: '',
@@ -109,6 +109,10 @@ async function setActive(u: User, active: boolean) {
       Personalkonton loggar in via <strong>/personal/login</strong> och ser bara sina egna inplanerade arbeten och uppgifter.
       Varje personalkonto kopplas till en personalresurs – det är den kopplingen som avgör vilka bokningar personen ser.
     </p>
+    <p class="hint">
+      Redovisningskonton (t.ex. en redovisningskonsult) loggar in via <strong>/redovisning/login</strong> och ser alla projekt
+      med kund- och faktureringsuppgifter, ÄTA och utgifter – utan att kunna ändra något eller se interna anteckningar.
+    </p>
 
     <table class="data-table">
       <thead>
@@ -146,6 +150,7 @@ async function setActive(u: User, active: boolean) {
       <label>Roll
         <select v-model="form.role">
           <option value="employee">Personal (ser bara egna arbeten)</option>
+          <option value="accountant">Redovisning (ser projekt och kunder, skrivskyddat)</option>
           <option value="member">Medlem</option>
           <option value="admin">Admin</option>
         </select>
@@ -172,6 +177,7 @@ async function setActive(u: User, active: boolean) {
           <label>Roll
             <select v-model="edit.role" :disabled="!!currentUser && editing?.id === currentUser.id">
               <option value="employee">Personal</option>
+              <option value="accountant">Redovisning</option>
               <option value="member">Medlem</option>
               <option value="admin">Admin</option>
             </select>

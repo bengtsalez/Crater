@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'member' | 'employee'
+export type UserRole = 'admin' | 'member' | 'employee' | 'accountant'
 
 export interface User {
   id: number
@@ -201,4 +201,58 @@ export interface EmployeeJobDetail {
   } | null
   staff_info: { instructions: string; updated_at: string; updated_by: string | null } | null
   tasks: EmployeeTask[]
+}
+
+// ---- Redovisningsvyn (rollen 'accountant') ----
+
+export interface AccountantCustomer {
+  name: string | null
+  customer_type: string | null
+  organization_number: string | null
+  contact_person: string | null
+  email: string | null
+  phone: string | null
+  mobile: string | null
+  address: string | null
+  postal_code: string | null
+  city: string | null
+  billing_address: string | null
+  billing_postal_code: string | null
+  billing_city: string | null
+  billing_email: string | null
+  invoice_reference: string | null
+}
+
+export interface AccountantProject {
+  id: number
+  project_number: string
+  name: string
+  status: string
+  work_type: 'project' | 'small_job'
+  billing_type: 'billable' | 'warranty' | 'internal'
+  sum: number | null
+  start_date: string | null
+  end_date: string | null
+  site_address: string | null
+  project_manager_username: string | null
+  customer_id: number | null
+  customer_name: string | null
+  customer_organization_number: string | null
+  customer_city: string | null
+  ata_total: number
+  expense_total: number
+}
+
+export interface AccountantLineItem {
+  id: number
+  type: 'ata' | 'utgift'
+  description: string
+  amount: number
+  date: string | null
+}
+
+export interface AccountantProjectDetail {
+  project: Omit<AccountantProject, 'customer_name' | 'customer_organization_number' | 'customer_city' | 'ata_total' | 'expense_total'>
+  customer: AccountantCustomer | null
+  line_items: AccountantLineItem[]
 }

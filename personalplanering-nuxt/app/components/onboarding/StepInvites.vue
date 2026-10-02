@@ -50,7 +50,7 @@ defineExpose({ save })
       <li v-for="u in users" :key="u.id" class="ob-list-row">
         <span class="ob-grow">{{ u.username }}</span>
         <span class="ob-muted">
-          {{ u.role === 'admin' ? 'Admin' : u.role === 'employee' ? 'Personal' : 'Medlem' }}{{ currentUser && u.id === currentUser.id ? ' (du)' : '' }}
+          {{ u.role === 'admin' ? 'Admin' : u.role === 'employee' ? 'Personal' : u.role === 'accountant' ? 'Redovisning' : 'Medlem' }}{{ currentUser && u.id === currentUser.id ? ' (du)' : '' }}
         </span>
       </li>
     </ul>

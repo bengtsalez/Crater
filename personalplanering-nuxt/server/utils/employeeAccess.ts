@@ -49,6 +49,17 @@ export function isEmployeeAllowedPath(rawPath: string): boolean {
   return path.startsWith(EMPLOYEE_PREFIX) && path.length > EMPLOYEE_PREFIX.length
 }
 
+// Deny-by-default för redovisningskonsulten (rollen 'accountant'): bara
+// /api/me, /api/logout och den skrivskyddade /api/accountant/**.
+const ACCOUNTANT_PREFIX = '/api/accountant/'
+
+export function isAccountantAllowedPath(rawPath: string): boolean {
+  const path = normalizeApiPath(rawPath)
+  if (!path) return false
+  if (EMPLOYEE_EXACT_PATHS.has(path)) return true
+  return path.startsWith(ACCOUNTANT_PREFIX) && path.length > ACCOUNTANT_PREFIX.length
+}
+
 // ---- Sessionsanvändare (läses från DB på varje skyddat anrop) ----
 
 export interface SessionUserRow {

@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
 
   if (project_manager_user_id) {
     const { rowCount } = await pool.query(
-      "SELECT 1 FROM users WHERE id = $1 AND org_id = $2 AND role <> 'employee'",
+      "SELECT 1 FROM users WHERE id = $1 AND org_id = $2 AND role NOT IN ('employee', 'accountant')",
       [project_manager_user_id, orgId]
     )
     if (!rowCount) throw apiError(400, 'Ogiltig projektledare.')
