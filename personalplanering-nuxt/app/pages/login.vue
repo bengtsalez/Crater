@@ -6,5 +6,8 @@
     <p class="login-alt">
       Personal? <NuxtLink to="/personal/login">Logga in här</NuxtLink>
     </p>
+    <p class="login-alt">
+      Ekonomi? <NuxtLink to="/redovisning/login">Logga in här</NuxtLink>
+    </p>
   </LoginForm>
 </template>
