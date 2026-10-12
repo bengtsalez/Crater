@@ -5,6 +5,7 @@ import StepDepartments from '~/components/onboarding/StepDepartments.vue'
 import StepStaff from '~/components/onboarding/StepStaff.vue'
 import StepProjects from '~/components/onboarding/StepProjects.vue'
 import StepInvites from '~/components/onboarding/StepInvites.vue'
+import StepPayment from '~/components/onboarding/StepPayment.vue'
 import StepDone from '~/components/onboarding/StepDone.vue'
 
 definePageMeta({ layout: 'blank' })
@@ -23,11 +24,21 @@ const STEP_COMPONENTS: Record<string, unknown> = {
   staff: StepStaff,
   projects: StepProjects,
   invites: StepInvites,
+  payment: StepPayment,
   done: StepDone,
 }
 
 const stepComponent = computed(() => STEP_COMPONENTS[ob.current.value.key])
-const SKIPPABLE = new Set(['departments', 'staff', 'projects', 'invites'])
+// Sätt till true när betalning ska vara obligatorisk (kräver då även att
+// StepPayment.save() verifierar köpet).
+const PAYMENT_REQUIRED = false
+const SKIPPABLE = new Set([
+  'departments',
+  'staff',
+  'projects',
+  'invites',
+  ...(PAYMENT_REQUIRED ? [] : ['payment']),
+])
 const canSkip = computed(() => SKIPPABLE.has(ob.current.value.key))
 
 onMounted(async () => {

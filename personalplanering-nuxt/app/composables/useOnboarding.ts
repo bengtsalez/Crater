@@ -6,6 +6,7 @@ export const ONBOARDING_STEPS = [
   { key: 'staff', label: 'Personal' },
   { key: 'projects', label: 'Projekt' },
   { key: 'invites', label: 'Användare' },
+  { key: 'payment', label: 'Betalning' },
   { key: 'done', label: 'Klar' },
 ] as const
 

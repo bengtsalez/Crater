@@ -10,6 +10,13 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // Stripes <stripe-buy-button> är ett web component, inte en Vue-komponent.
+  vue: {
+    compilerOptions: {
+      isCustomElement: (tag) => tag.startsWith('stripe-'),
+    },
+  },
+
   app: {
     head: {
       htmlAttrs: { lang: 'sv' },
