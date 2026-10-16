@@ -16,12 +16,14 @@ useHead(() => ({ title: appTitle.value }))
 
 const allTabs: { name: TabName; label: string; hidden?: boolean; adminOnly?: boolean }[] = [
   { name: 'timeline', label: 'Tidslinje' },
-  { name: 'analytics', label: 'Översikt' },
+  // Dold tills vidare – AnalyticsPanel finns kvar och kan återaktiveras genom att ta bort hidden.
+  { name: 'analytics', label: 'Översikt', hidden: true },
   { name: 'month', label: 'Månadskalender', hidden: true },
   { name: 'projects', label: 'Projekt' },
   { name: 'strojobb', label: 'Ströjobb' },
   { name: 'resources', label: 'Personal' },
   { name: 'kunder', label: 'Kunder' },
+  { name: 'egenkontroller', label: 'Egenkontroller' },
   { name: 'minsida', label: 'Min sida' },
   { name: 'konton', label: 'Konton', adminOnly: true },
 ]

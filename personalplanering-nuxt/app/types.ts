@@ -140,6 +140,9 @@ export interface LineItem {
   date: string | null
   notes: string | null
   created_at: string
+  ata_status?: 'utkast' | 'skickad' | 'godkand' | 'avbojd'
+  approved_at?: string | null
+  revision?: number
 }
 
 export interface ActivityEvent {
@@ -175,6 +178,7 @@ export interface EmployeeJob {
   site_address: string | null
   work_type: 'project' | 'small_job'
   remaining_tasks: number
+  open_inspections: number
 }
 
 export interface EmployeeTask {

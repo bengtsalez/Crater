@@ -67,3 +67,14 @@ backfylls med `user_id`.
 
 Rollen `employee` är ett nytt värde i den befintliga TEXT-kolumnen `users.role` och
 kräver ingen DDL. Se `docs/employee-access.md`.
+
+## 0009_inspections
+
+Endast additiv: nya tabeller för egenkontroller och checklistor:
+- `inspection_templates`, `inspection_template_versions`
+- `inspections`, `inspection_items`
+- `inspection_answers`, `inspection_answer_history`
+- `inspection_deviations`, `inspection_deviation_history`
+- `inspection_attachments`, `inspection_events`
+
+Migrationen lägger också till triggers som skyddar publicerade mallversioner och låsta kontroller. Inga befintliga rader ändras. Bildlagringen kräver nya env-variabler (`INSPECTION_S3_*`); utan dem fungerar allt utom bilduppladdning. Se `docs/inspections.md`.

@@ -22,7 +22,7 @@ const deleting = ref(false)
 
 // Kom ihåg senaste valet under sessionen så man slipper kryssa i om
 // varje gång man bokar flera personer på samma projekt.
-let lastSyncProjectDates = false
+let lastSyncProjectDates = true
 
 const form = reactive({
   id: '' as number | '',
@@ -31,12 +31,20 @@ const form = reactive({
   start_date: '',
   end_date: '',
   note: '',
-  sync_project_dates: false,
+  sync_project_dates: true,
 })
 
 const canSyncProjectDates = computed(() => typeof form.project_id === 'number')
 
 let prevProjectId: number | '' = ''
+
+const selectedResourceName = computed(
+  () => resources.value.find((r) => r.id === form.resource_id)?.name ?? ''
+)
+const selectedProjectLabel = computed(() => {
+  const p = projectOptions.value.find((p) => p.id === form.project_id)
+  return p ? projectDisplayLabel(p) : ''
+})
 
 const projectOptions = computed(() =>
   activeProjectsForSelect(projects.value, modal.value.assignment?.project_id ?? null)
@@ -102,7 +110,7 @@ async function submit() {
   if (saving.value) return
   saving.value = true
   const syncDates = canSyncProjectDates.value && form.sync_project_dates
-  lastSyncProjectDates = syncDates
+  if (canSyncProjectDates.value) lastSyncProjectDates = form.sync_project_dates
   const payload = {
     resource_id: Number(form.resource_id),
     project_id: Number(form.project_id),
@@ -149,19 +157,25 @@ async function remove() {
     <template #body>
       <form id="assignment-form" class="pp-form" @submit.prevent="submit">
         <label>Person *
-          <select v-model="form.resource_id" required>
-            <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.name }}</option>
-          </select>
+          <div class="select-copy">
+            <select v-model="form.resource_id" required>
+              <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.name }}</option>
+            </select>
+            <UiCopyButton :text="selectedResourceName" />
+          </div>
         </label>
         <label>Projekt *
-          <select v-model="form.project_id" required @change="onProjectChange">
-            <option value="" disabled>Välj projekt…</option>
-            <option v-for="p in projectOptions" :key="p.id" :value="p.id">
-              {{ projectDisplayLabel(p) }}
-            </option>
-            <option value="__new__">+ Skapa nytt projekt</option>
-            <option value="__new_job__">+ Skapa ströjobb</option>
-          </select>
+          <div class="select-copy">
+            <select v-model="form.project_id" required @change="onProjectChange">
+              <option value="" disabled>Välj projekt…</option>
+              <option v-for="p in projectOptions" :key="p.id" :value="p.id">
+                {{ projectDisplayLabel(p) }}
+              </option>
+              <option value="__new__">+ Skapa nytt projekt</option>
+              <option value="__new_job__">+ Skapa ströjobb</option>
+            </select>
+            <UiCopyButton :text="selectedProjectLabel" />
+          </div>
         </label>
         <div class="row-2">
           <label>Från *<UiDateField v-model="form.start_date" required /></label>

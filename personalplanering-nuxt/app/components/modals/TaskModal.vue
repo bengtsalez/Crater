@@ -46,6 +46,11 @@ const assigneeOptions = computed(() => {
 })
 const assigningToEmployee = computed(() => !!form.user_id && form.user_id !== currentUser.value?.id)
 
+const selectedProjectLabel = computed(() => {
+  const p = projectOptions.value.find((p) => p.id === form.project_id)
+  return p ? projectDisplayLabel(p) : ''
+})
+
 const projectOptions = computed(() =>
   activeProjectsForSelect(projects.value, modal.value.task?.project_id ?? null)
 )
@@ -135,12 +140,15 @@ async function remove() {
       <form id="task-form" class="pp-form" @submit.prevent="submit">
         <label>Titel *<input v-model="form.title" required></label>
         <label>Projekt
-          <select v-model="form.project_id">
-            <option value="">Inget projekt</option>
-            <option v-for="p in projectOptions" :key="p.id" :value="p.id">
-              {{ projectDisplayLabel(p) }}
-            </option>
-          </select>
+          <div class="select-copy">
+            <select v-model="form.project_id">
+              <option value="">Inget projekt</option>
+              <option v-for="p in projectOptions" :key="p.id" :value="p.id">
+                {{ projectDisplayLabel(p) }}
+              </option>
+            </select>
+            <UiCopyButton :text="selectedProjectLabel" />
+          </div>
         </label>
         <label v-if="assigneeOptions.length || assigningToEmployee">Tilldela
           <select v-model="form.user_id">

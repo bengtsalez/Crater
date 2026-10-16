@@ -128,3 +128,14 @@ export function requireAdmin(event: H3Event): SessionPayload {
   }
   return user
 }
+
+// Fakturering: projektledare och kontor (admin/member). Personal- och
+// redovisningskonton nekas – även om middlewarens allow-listor redan stoppar
+// dem anropas detta i varje fakturerings-route (inklusive PDF-hämtning).
+export function requireBilling(event: H3Event): SessionPayload {
+  const user = requireUser(event)
+  if (user.role !== 'admin' && user.role !== 'member') {
+    throw createError({ statusCode: 403, data: { error: 'Saknar behörighet till fakturering.' } })
+  }
+  return user
+}

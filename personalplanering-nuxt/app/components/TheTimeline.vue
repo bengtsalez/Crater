@@ -32,7 +32,7 @@ const tlDayWidth = computed(() => (isMobile.value ? TL_DAY_WIDTH_COMPACT : TL_DA
 const tlStart = ref(mondayOf(new Date()))
 const filterType = ref('')
 const searchQuery = ref('')
-const showHolidays = ref(false)
+const showHolidays = ref(true)
 
 const today = new Date()
 
@@ -368,6 +368,64 @@ function onCellClick(resourceId: number, date: string) {
   openAssignmentModal({ resourceId, date })
 }
 
+// Dra ett projekt från "Att planera" till en rad → bokningsmodal med person,
+// projekt och startdatum förvalda. Släpp letar upp cellen under pekaren även
+// när en stapel ligger ovanpå (overlayn).
+const PROJECT_DRAG_TYPE = 'application/x-crater-project'
+const draggingProjectId = ref<number | null>(null)
+const dropTarget = ref<{ resourceId: number; date: string } | null>(null)
+
+function cellAtPoint(x: number, y: number): HTMLElement | null {
+  const el = document.elementsFromPoint(x, y).find((n) => (n as HTMLElement).dataset?.role === 'cell')
+  return (el as HTMLElement | undefined) ?? null
+}
+
+function onUnplannedDragStart(e: DragEvent, projectId: number) {
+  if (!e.dataTransfer) return
+  e.dataTransfer.setData(PROJECT_DRAG_TYPE, String(projectId))
+  e.dataTransfer.effectAllowed = 'copy'
+  draggingProjectId.value = projectId
+}
+
+function onUnplannedDragEnd() {
+  draggingProjectId.value = null
+  dropTarget.value = null
+}
+
+function onTimelineDragOver(e: DragEvent) {
+  if (draggingProjectId.value == null) return
+  const cell = cellAtPoint(e.clientX, e.clientY)
+  if (!cell) {
+    dropTarget.value = null
+    return
+  }
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+  const resourceId = Number(cell.dataset.resource)
+  const date = cell.dataset.date!
+  if (dropTarget.value?.resourceId !== resourceId || dropTarget.value?.date !== date) {
+    dropTarget.value = { resourceId, date }
+  }
+}
+
+function onTimelineDragLeave(e: DragEvent) {
+  const to = e.relatedTarget as Node | null
+  if (!to || !(e.currentTarget as HTMLElement).contains(to)) dropTarget.value = null
+}
+
+function onTimelineDrop(e: DragEvent) {
+  const projectId = draggingProjectId.value ?? Number(e.dataTransfer?.getData(PROJECT_DRAG_TYPE))
+  const cell = cellAtPoint(e.clientX, e.clientY)
+  onUnplannedDragEnd()
+  if (!projectId || !cell) return
+  e.preventDefault()
+  openAssignmentModal({ projectId, resourceId: Number(cell.dataset.resource), date: cell.dataset.date! })
+}
+
+function isDropTarget(resourceId: number, d: Date) {
+  return dropTarget.value?.resourceId === resourceId && dropTarget.value.date === toISO(d)
+}
+
 let dragSuppressClick = false
 
 function onBarClick(assignmentId: number) {
@@ -693,7 +751,12 @@ function hideTip() {
 
     <div v-show="view === 'gantt'" class="timeline-layout">
       <div ref="wrapRef" class="timeline-wrap" @pointerdown="startRulerPan">
-      <div class="timeline-inner">
+      <div
+        class="timeline-inner"
+        @dragover="onTimelineDragOver"
+        @dragleave="onTimelineDragLeave"
+        @drop="onTimelineDrop"
+      >
         <div
           ref="gridRef"
           class="timeline-grid"
@@ -738,7 +801,7 @@ function hideTip() {
                   v-for="(d, i) in days"
                   :key="`c-${r.id}-${i}`"
                   class="tl-cell"
-                  :class="dayClasses(d)"
+                  :class="[dayClasses(d), { 'tl-drop-target': isDropTarget(r.id, d) }]"
                   :title="isHoliday(d) ? holidayName(d) : undefined"
                   data-role="cell"
                   :data-resource="r.id"
@@ -758,7 +821,7 @@ function hideTip() {
                 v-for="(d, i) in days"
                 :key="`sc-${r.id}-${i}`"
                 class="tl-cell"
-                :class="dayClasses(d)"
+                :class="[dayClasses(d), { 'tl-drop-target': isDropTarget(r.id, d) }]"
                 :title="isHoliday(d) ? holidayName(d) : undefined"
                 data-role="cell"
                 :data-resource="r.id"
@@ -829,12 +892,17 @@ function hideTip() {
           Inga aktiva projekt eller ströjobb att planera in.
         </p>
         <template v-else>
+          <p class="tl-unplanned-hint">Dra till en rad i tidslinjen för att planera in.</p>
           <h4 v-if="unplannedRegularProjects.length" class="tl-unplanned-subtitle">Projekt</h4>
           <ul v-if="unplannedRegularProjects.length" class="tl-unplanned-list">
             <li
               v-for="p in unplannedRegularProjects"
               :key="p.id"
               class="tl-unplanned-item"
+              :class="{ dragging: draggingProjectId === p.id }"
+              draggable="true"
+              @dragstart="onUnplannedDragStart($event, p.id)"
+              @dragend="onUnplannedDragEnd"
               @click="openProjectDetail(p.id)"
             >
               <span class="tl-unplanned-name">{{ p.project_number }} – {{ p.name }}</span>
@@ -850,6 +918,10 @@ function hideTip() {
               v-for="p in unplannedSmallJobs"
               :key="`uj-${p.id}`"
               class="tl-unplanned-item"
+              :class="{ dragging: draggingProjectId === p.id }"
+              draggable="true"
+              @dragstart="onUnplannedDragStart($event, p.id)"
+              @dragend="onUnplannedDragEnd"
               @click="openProjectDetail(p.id)"
             >
               <span class="tl-unplanned-name">{{ projectDisplayLabel(p) }}</span>

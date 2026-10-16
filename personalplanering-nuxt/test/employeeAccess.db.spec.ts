@@ -47,7 +47,7 @@ describe('1. två anställda ser bara sina egna bokningar och uppgifter', () => 
   it('jobblistan innehåller inga interna fält', async () => {
     const [job] = await listEmployeeJobs(db, annaScope(), { today: TODAY })
     expect(Object.keys(job!).sort()).toEqual(
-      ['assignment_id', 'end_date', 'note', 'project_id', 'project_name', 'project_number', 'remaining_tasks', 'site_address', 'start_date', 'work_type'].sort()
+      ['assignment_id', 'end_date', 'note', 'open_inspections', 'project_id', 'project_name', 'project_number', 'remaining_tasks', 'site_address', 'start_date', 'work_type'].sort()
     )
   })
 

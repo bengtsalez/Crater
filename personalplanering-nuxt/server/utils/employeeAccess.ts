@@ -140,6 +140,8 @@ export interface EmployeeJobRow {
   site_address: string | null
   work_type: string
   remaining_tasks: number
+  /** Tilldelade egenkontroller/checklistor som inte är inlämnade ännu. */
+  open_inspections: number
 }
 
 // Den inloggades bokningar ur den ordinarie planeringen (assignments).
@@ -156,7 +158,10 @@ export async function listEmployeeJobs(
     `SELECT a.id AS assignment_id, a.start_date, a.end_date, a.note,
             p.id AS project_id, p.project_number, p.name AS project_name, p.site_address, p.work_type,
             (SELECT count(*)::int FROM tasks t
-              WHERE t.org_id = a.org_id AND t.user_id = $3 AND t.project_id = p.id AND t.status <> 'avslutad') AS remaining_tasks
+              WHERE t.org_id = a.org_id AND t.user_id = $3 AND t.project_id = p.id AND t.status <> 'avslutad') AS remaining_tasks,
+            (SELECT count(*)::int FROM inspections i
+              WHERE i.org_id = a.org_id AND i.project_id = p.id AND i.responsible_user_id = $3 AND i.superseded_by_id IS NULL
+                AND i.status IN ('draft', 'in_progress', 'changes_requested')) AS open_inspections
      FROM assignments a
      JOIN projects p ON p.id = a.project_id AND p.org_id = a.org_id
      WHERE a.org_id = $1 AND a.resource_id = $2
@@ -165,7 +170,7 @@ export async function listEmployeeJobs(
      ORDER BY a.start_date, a.end_date, a.id`,
     [scope.org, scope.resourceId, scope.userId, from, to]
   )
-  return rows.map((r) => ({ ...r, remaining_tasks: Number(r.remaining_tasks) }))
+  return rows.map((r) => ({ ...r, remaining_tasks: Number(r.remaining_tasks), open_inspections: Number(r.open_inspections) }))
 }
 
 // ---- Ett arbete ----

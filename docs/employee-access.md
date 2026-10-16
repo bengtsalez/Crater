@@ -59,6 +59,10 @@ svaret avgör vart man hamnar, så en anställd som loggar in via `/login` hamna
 | `GET /api/employee/jobs[?from&to]` | egna bokningar (standard: idag och framåt; intervall = överlapp) |
 | `GET /api/employee/jobs/:projectId` | detaljvy för ett arbete |
 | `PUT /api/employee/tasks/:id` | `{ status }` på egen uppgift |
+| `GET /api/employee/inspections[?project_id]` | egna tilldelade egenkontroller/checklistor (kräver även bokning) |
+| `GET/PUT/POST /api/employee/inspections/:id/**` | ifyllnad, foto, inlämning, åtgärd av avvikelse, PDF – se `docs/inspections.md` |
+
+**Egenkontroller:** personal når en kontroll bara om båda villkoren gäller: personen är kontrollens huvudansvarige *och* har en bokning på projektet. En tilldelning öppnar aldrig ett annars otillgängligt projekt. Kontrollen prövas vid varje läsning och skrivning, även för bilder och PDF. Mina arbeten visar `open_inspections` per bokning.
 
 ## Projektledarens flöde
 
@@ -89,7 +93,8 @@ I projektdetaljen finns avsnittet **Information till personal**:
 
 ## Filbilagor – uppskjutet
 
-Uppladdning av dokument och bilder till personal är **inte byggd**. Appen körs som
+Bilder i **egenkontroller** är byggda med S3-kompatibel lagring och signerade URL:er (se `docs/inspections.md`). Generella bilagor till *Information till personal* är fortfarande
+**inte byggda**. Appen körs som
 Netlify Functions (tillfälligt filsystem, ~6 MB request-gräns), så ett lagringsbeslut
 krävs först: Postgres `bytea`, Netlify Blobs eller S3-kompatibel lagring med kortlivade
 signerade URL:er. Avsnittet *Information till personal* (`ProjectStaffInfo.vue`) och

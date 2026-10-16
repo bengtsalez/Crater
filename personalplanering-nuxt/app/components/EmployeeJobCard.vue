@@ -12,6 +12,10 @@ defineProps<{ job: EmployeeJob }>()
       <span class="emp-card-tasks" :class="{ done: !job.remaining_tasks }">{{ remainingTasksLabel(job.remaining_tasks) }}</span>
     </div>
     <div class="emp-card-title">{{ job.project_name }}</div>
+    <div v-if="job.open_inspections" class="emp-card-row ik-emp-pill">
+      <UIcon name="i-lucide-clipboard-check" />
+      <span>{{ job.open_inspections }} {{ job.open_inspections === 1 ? 'kontroll' : 'kontroller' }} att fylla i</span>
+    </div>
     <div class="emp-card-row">
       <UIcon name="i-lucide-calendar" />
       <span>{{ formatBookingPeriod(job.start_date, job.end_date) }}</span>

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { EmployeeJobDetail, EmployeeTask } from '~/types'
+import type { InspectionListRow } from '../../../../shared/inspectionTypes'
+import { INSPECTION_KIND_LABELS } from '../../../../shared/inspections'
 import { customerAddress, formatBookingPeriod, mapsUrl, sameAddress, telHref } from '~/utils/employeeJobs'
 
 definePageMeta({ layout: 'employee' })
@@ -17,9 +19,13 @@ const noResource = ref('')
 const error = ref('')
 const savingTaskId = ref<number | null>(null)
 
+// Tilldelade egenkontroller/checklistor på det här arbetet.
+const inspections = ref<InspectionListRow[]>([])
+
 async function load() {
   try {
     job.value = await api<EmployeeJobDetail>('GET', `/api/employee/jobs/${projectId.value}`)
+    inspections.value = await api<InspectionListRow[]>('GET', `/api/employee/inspections?project_id=${projectId.value}`).catch(() => inspections.value)
     error.value = ''
     notFound.value = false
   } catch (err) {
@@ -160,6 +166,27 @@ async function toggle(t: EmployeeTask) {
             </template>
           </div>
         </template>
+      </div>
+
+      <!-- Egenkontroller -->
+      <div v-if="inspections.length" class="emp-block">
+        <h2 class="emp-h2">Egenkontroller &amp; checklistor</h2>
+        <NuxtLink
+          v-for="i in inspections"
+          :key="i.id"
+          :to="`/personal/kontroll/${i.id}?arbete=${projectId}`"
+          class="emp-card ik-emp-card"
+        >
+          <div class="emp-card-head">
+            <span class="emp-card-number">{{ INSPECTION_KIND_LABELS[i.kind] }}</span>
+            <InspectionsStatusBadge :status="i.status" />
+          </div>
+          <div class="emp-card-title">{{ i.name }}<span v-if="i.location"> – {{ i.location }}</span></div>
+          <InspectionsCoverageBar :coverage="i.coverage" />
+          <div v-if="i.due_date" class="emp-card-row"><UIcon name="i-lucide-calendar" /><span>Sista datum {{ i.due_date }}</span></div>
+          <div v-if="i.open_deviations" class="emp-card-row ik-warn-text"><UIcon name="i-lucide-triangle-alert" /><span>{{ i.open_deviations }} avvikelser att åtgärda</span></div>
+          <UIcon name="i-lucide-chevron-right" class="emp-card-chevron" />
+        </NuxtLink>
       </div>
 
       <!-- Mina uppgifter -->

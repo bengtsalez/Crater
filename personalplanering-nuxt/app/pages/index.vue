@@ -51,6 +51,7 @@ onUnmounted(stopPolling)
         <SmallJobsPanel v-else-if="activeTab === 'strojobb'" />
         <ResourcesPanel v-else-if="activeTab === 'resources'" />
         <CustomersPanel v-else-if="activeTab === 'kunder'" />
+        <InspectionsPanel v-else-if="activeTab === 'egenkontroller'" />
         <MinSidaPanel v-else-if="activeTab === 'minsida'" />
         <UsersPanel v-else-if="activeTab === 'konton'" />
       </template>

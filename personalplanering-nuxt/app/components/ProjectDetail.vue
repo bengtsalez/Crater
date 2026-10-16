@@ -5,6 +5,7 @@ import { formatSum } from '~/utils/format'
 import { STATUS_LABELS } from '~/utils/constants'
 import { BILLING_TYPE_LABELS } from '~/utils/projects'
 import { projectCustomerName } from '~/utils/customers'
+import { ATA_STATUS_LABELS } from '../../shared/billing'
 
 const { projects, assignments, customers, currentUser, users, loadAll } = useAppData()
 const { projectDetailId, projectDetailBackLabel, closeProjectDetail, openProjectDetail, openCustomerDetail } = useUiState()
@@ -17,6 +18,18 @@ const toast = useToast()
 const project = computed(() => projects.value.find((p) => p.id === projectDetailId.value) || null)
 const customer = computed(() => customers.value.find((c) => c.id === project.value?.customer_id) || null)
 const detailIsSmallJob = computed(() => project.value?.work_type === 'small_job')
+
+// Fakturering: endast projektledare/kontor (admin/member). Servern kontrollerar
+// behörigheten för varje anrop – fliken döljs dessutom för andra roller.
+const canBill = computed(() => currentUser.value?.role === 'admin' || currentUser.value?.role === 'member')
+const detailTab = useState<'overview' | 'billing' | 'inspections'>('pd:tab', () => 'overview')
+const showBillingTab = computed(() => canBill.value && !detailIsSmallJob.value)
+// Egenkontroller: samma verksamhetsroller, även för ströjobb.
+const showInspectionsTab = computed(() => canBill.value)
+const showTabs = computed(() => showBillingTab.value || showInspectionsTab.value)
+watch(projectDetailId, () => {
+  detailTab.value = 'overview'
+})
 
 const relatedJobs = computed(() =>
   project.value
@@ -157,6 +170,18 @@ async function deleteTask(t: Task) {
       </span>
     </div>
 
+    <InspectionsSummaryLine v-if="showInspectionsTab" :key="`${project.id}-${detailTab}`" :project-id="project.id" @open="detailTab = 'inspections'" />
+
+    <div v-if="showTabs" class="tabs pd-tabs" role="tablist">
+      <button type="button" role="tab" class="tab-btn" :class="{ active: detailTab === 'overview' }" :aria-selected="detailTab === 'overview'" @click="detailTab = 'overview'">Översikt</button>
+      <button v-if="showBillingTab" type="button" role="tab" class="tab-btn" :class="{ active: detailTab === 'billing' }" :aria-selected="detailTab === 'billing'" @click="detailTab = 'billing'">Fakturering</button>
+      <button v-if="showInspectionsTab" type="button" role="tab" class="tab-btn" :class="{ active: detailTab === 'inspections' }" :aria-selected="detailTab === 'inspections'" @click="detailTab = 'inspections'">Egenkontroller &amp; checklistor</button>
+    </div>
+
+    <BillingProjectBilling v-if="showBillingTab && detailTab === 'billing'" :project-id="project.id" />
+    <InspectionsProjectInspections v-else-if="showInspectionsTab && detailTab === 'inspections'" :project-id="project.id" />
+
+    <template v-else>
     <template v-if="!detailIsSmallJob">
       <div class="ms-overview">
         <div class="ms-stat"><div class="ms-stat-value">{{ formatSum(baseSum) }}</div><div class="ms-stat-label">Kontraktssumma</div></div>
@@ -172,13 +197,14 @@ async function deleteTask(t: Task) {
         <button class="plain primary" @click="openLineItemModal('ata', null, project.id)">+ Ny ÄTA</button>
       </div>
       <table class="data-table">
-        <thead><tr><th>Beskrivning</th><th>Datum</th><th>Belopp</th><th /></tr></thead>
+        <thead><tr><th>Beskrivning</th><th>Datum</th><th>Belopp</th><th>Status</th><th /></tr></thead>
         <tbody>
-          <tr v-if="!ata.length"><td colspan="4" class="empty-state">Inga rader ännu.</td></tr>
+          <tr v-if="!ata.length"><td colspan="5" class="empty-state">Inga rader ännu.</td></tr>
           <tr v-for="li in ata" :key="li.id" class="clickable" @click="openLineItemModal('ata', li, project.id)">
             <td data-label="Beskrivning">{{ li.description }}</td>
             <td data-label="Datum">{{ li.date || '–' }}</td>
             <td data-label="Belopp">{{ formatSum(li.amount) }}</td>
+            <td data-label="Status"><span class="badge" :class="'ata-' + (li.ata_status || 'utkast')">{{ ATA_STATUS_LABELS[li.ata_status || 'utkast'] }}</span></td>
             <td data-label=""><button class="plain danger" @click.stop="deleteLineItem(li)">Ta bort</button></td>
           </tr>
         </tbody>
@@ -256,6 +282,8 @@ async function deleteTask(t: Task) {
         @delete="deleteTask"
       />
     </div>
+
+    </template>
 
     <h3 class="group-title">Aktivitet</h3>
     <ActivityFeed :activities="activities" />

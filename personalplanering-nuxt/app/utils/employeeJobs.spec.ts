@@ -13,6 +13,7 @@ const job = (id: number, start: string, end: string, projectId = 1): EmployeeJob
   site_address: null,
   work_type: 'project',
   remaining_tasks: 0,
+  open_inspections: 0,
 })
 
 describe('splitJobs', () => {

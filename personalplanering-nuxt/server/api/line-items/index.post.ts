@@ -8,6 +8,7 @@ export default defineEventHandler(async (event) => {
   const orgId = user.org
   const b = await readBody(event)
   const { project_id, type, description, amount, date, notes } = b || {}
+  const ataStatus = type === 'ata' && ['utkast', 'skickad', 'godkand', 'avbojd'].includes(b?.ata_status) ? b.ata_status : 'utkast'
   if (
     !project_id ||
     !['ata', 'utgift'].includes(type) ||
@@ -23,9 +24,11 @@ export default defineEventHandler(async (event) => {
   if (!rowCount) throw apiError(400, 'Ogiltig referens.')
 
   const { rows } = await pool.query(
-    `INSERT INTO project_line_items (org_id, project_id, type, description, amount, date, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [orgId, project_id, type, description.trim(), Number(amount), date || null, notes || null]
+    `INSERT INTO project_line_items (org_id, project_id, type, description, amount, date, notes, ata_status,
+       approved_at, approved_by_user_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $8 = 'godkand' THEN now() END, CASE WHEN $8 = 'godkand' THEN $9::int END)
+     RETURNING *`,
+    [orgId, project_id, type, description.trim(), Number(amount), date || null, notes || null, ataStatus, user.sub]
   )
 
   await logActivity(
